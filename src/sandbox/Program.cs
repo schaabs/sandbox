@@ -42,7 +42,7 @@ namespace sandbox.temp
 
                 for (int i = 0; i < FORK_COUNT; i++)
                 {
-                    forkTasks[i] = CopyToFileAsync(forks[i], $@"d:\temp\stress1{i}.log", 1024 * 1024);
+                    forkTasks[i] = CopyToFileAsync(forks[i], $@"d:\temp\stress1{i}.log", 8 * 1024);
                 }
 
                 Task.WaitAll(forkTasks);
@@ -75,9 +75,9 @@ namespace sandbox.temp
                     cByte += rBytes;
 
                     await file.WriteAsync(buff, 0, rBytes);
-
-                    await file.FlushAsync();
                 }
+
+                await file.FlushAsync();
             }
         }
     }

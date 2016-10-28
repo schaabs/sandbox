@@ -12,11 +12,11 @@ namespace sandbox.tools
     {
         private const int BUFF_SIZE = 8 * 1024 * 1024;
 
-        public static Stream[] Fork(this Stream stream, int count)
+        public static Stream[] Fork(this Stream stream, int count, long bufferSize = 0)
         {
             Stream[] streams = new Stream[count];
 
-            var buff = ForkedStreamBuffer.FromStream(stream, count);
+            var buff = ForkedStreamBuffer.FromStream(stream, count, bufferSize);
 
             for(int i = 0; i < count; i++)
             {
@@ -28,7 +28,7 @@ namespace sandbox.tools
 
         private class ForkedStreamBuffer
         {
-            private const int DEFAULT_PAGE_SIZE = 16 * 1024;
+            private const int PAGE_SIZE = 16 * 1024;
 
             internal Stream _source;
             private byte[] _pageData;
@@ -36,14 +36,25 @@ namespace sandbox.tools
             private int _bytesRead;
             private int _feedCount;
             private int _readCount;
-            private object _navLock;
-            private SemaphoreSlim _pageReady;
-            private ForkedStreamBuffer _nextPage;
-            private ForkedStreamBuffer _prevPage;
+            private volatile bool _initialized;
+            private SemaphoreSlim _navGuard;
+            private SemaphoreSlim _initGuard;
+            private SemaphoreSlim _pageAvailable;
+            private volatile ForkedStreamBuffer _nextPage;
             
-            public static ForkedStreamBuffer FromStream(Stream source, int feedCount, int pageSize = DEFAULT_PAGE_SIZE)
+            public static ForkedStreamBuffer FromStream(Stream source, int feedCount, long bufferSize = 0)
             {
-                return new ForkedStreamBuffer(source, feedCount, pageSize, 0);
+                int pageSize = PAGE_SIZE;
+
+                if (bufferSize > 0 && bufferSize < pageSize)
+                {
+                    pageSize = Convert.ToInt32(bufferSize);
+                }
+
+                var pagesAvailable = bufferSize <= 0 ? (SemaphoreSlim)null : new SemaphoreSlim(Convert.ToInt32(bufferSize / pageSize));
+
+                return new ForkedStreamBuffer(source, feedCount, pageSize, 0, pagesAvailable);
+                
             }
 
             public async Task<ForkedStreamBuffer> ReadAsync(ForkStream feed, byte[] buff, int buffOffset, int count)
@@ -54,14 +65,10 @@ namespace sandbox.tools
                     return this;
                 }
 
-                //otherwise make sure the page is fully read from the source
-                await _pageReady.WaitAsync();
-
-                //release the semaphore imediately 
-                _pageReady.Release();
+                await this.EnsureInitializedAsync();
 
                 //if the source index isn't in the page throw an exception
-                if(feed.Position < _basePos || feed.Position > EndOfPage)
+                if (feed.Position < _basePos)
                 {
                     throw new ArgumentOutOfRangeException("feed.Position");
                 }
@@ -95,7 +102,9 @@ namespace sandbox.tools
 
                 if (feed.Position > EndOfPage)
                 {
-                    var retPage = this.GetNextPage();
+                    this.MarkPageRead();
+
+                    var retPage = await this.GetNextPageAsync();
 
                     if (retPage != null)
                     {
@@ -109,12 +118,11 @@ namespace sandbox.tools
             }
 
             private ForkedStreamBuffer(ForkedStreamBuffer prevPage) :
-                this(prevPage._source, prevPage._feedCount, prevPage.PageSize, prevPage._basePos + prevPage.PageSize)
+                this(prevPage._source, prevPage._feedCount, prevPage.PageSize, prevPage._basePos + prevPage.PageSize, prevPage._pageAvailable)
             {
-                _prevPage = prevPage;
             }
 
-            private ForkedStreamBuffer(Stream source, int feedCount, int pageSize, long basePos)
+            private ForkedStreamBuffer(Stream source, int feedCount, int pageSize, long basePos, SemaphoreSlim pagesAvailable)
             {
                 _source = source;
 
@@ -128,52 +136,85 @@ namespace sandbox.tools
 
                 _readCount = 0;
 
-                _navLock = new object();
+                _initialized = false;
 
-                _pageReady = new SemaphoreSlim(0, 1);
+                _navGuard = new SemaphoreSlim(1, 1);
+
+                _initGuard = new SemaphoreSlim(1, 1);
+                
+                _pageAvailable = pagesAvailable;
 
                 _nextPage = null;
-
-                _prevPage = null;
-
-                Task t = ReadPageDataAsync();
             }
 
-            private async Task ReadPageDataAsync()
-            {
-                _bytesRead = await _source.ReadAsync(_pageData, 0, _pageData.Length);
-                
-                _pageReady.Release();
-            }
-
-            private void MarkPageRead()
-            {
-                var currReadCount = Interlocked.Increment(ref _readCount);
-
-                if(currReadCount == _feedCount)
-                {
-                    var next = GetNextPage();
-
-                    next._prevPage = null;
-                }
-            }
-
-            private ForkedStreamBuffer GetNextPage()
+            private async Task<ForkedStreamBuffer> GetNextPageAsync()
             {
                 if (this.IsLastPage)
                 {
                     return null;
                 }
 
-                lock (_navLock)
+                if (_nextPage == null)
                 {
-                    if (_nextPage == null)
+                    await _navGuard.WaitAsync();
+
+                    try
                     {
-                        _nextPage = new ForkedStreamBuffer(this);
+                        if (_nextPage == null)
+                        {
+                            if (_pageAvailable != null)
+                            {
+                                await _pageAvailable.WaitAsync();
+                            }
+
+                            _nextPage = new ForkedStreamBuffer(this);
+                        }
+                    }
+                    finally
+                    {
+                        _navGuard.Release();
                     }
                 }
-
+                
                 return _nextPage;
+            }
+
+            private async Task EnsureInitializedAsync()
+            {
+                if (_initialized)
+                {
+                    return;
+                }
+
+                await _initGuard.WaitAsync();
+
+                try
+                {
+                    if (!_initialized)
+                    {
+                        _bytesRead = await _source.ReadAsync(_pageData, 0, _pageData.Length);
+
+                        _initialized = true;
+                    }
+                }
+                finally
+                {
+                    _initGuard.Release();
+                }
+            }
+
+            private void MarkPageRead()
+            {
+                var currReadCount = Interlocked.Increment(ref _readCount);
+
+                if (currReadCount == _feedCount)
+                {
+                    if (_pageAvailable != null)
+                    {
+                        //if this is the last feed to read release the semaphore
+                        _pageAvailable.Release();
+                    }
+                }
             }
 
             private bool IsLastPage
