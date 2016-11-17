@@ -17,7 +17,7 @@ namespace sandbox.temp
 
         static void Run()
         {
-             Console.WriteLine("Hello World")
+            Console.WriteLine("Hello World");
         }
     }
 
