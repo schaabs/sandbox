@@ -9,6 +9,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "sandbox", "sandbox\sandbox.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "sandbox.tools.tests", "sandbox.tools.tests\sandbox.tools.tests.csproj", "{6854281B-15B5-4CD9-875A-6CBDC00C167D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "sandbox.entity", "sandbox.entity\sandbox.entity.csproj", "{4907EE3D-FF02-4959-A09F-7C6CD9E23CF3}"
+EndProject
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "sandbox.python", "sandbox.python\sandbox.python.pyproj", "{906C6FF2-1106-4DCB-9A50-1CC89D07B455}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +31,12 @@ Global
 		{6854281B-15B5-4CD9-875A-6CBDC00C167D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6854281B-15B5-4CD9-875A-6CBDC00C167D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6854281B-15B5-4CD9-875A-6CBDC00C167D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4907EE3D-FF02-4959-A09F-7C6CD9E23CF3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4907EE3D-FF02-4959-A09F-7C6CD9E23CF3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4907EE3D-FF02-4959-A09F-7C6CD9E23CF3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4907EE3D-FF02-4959-A09F-7C6CD9E23CF3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{906C6FF2-1106-4DCB-9A50-1CC89D07B455}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{906C6FF2-1106-4DCB-9A50-1CC89D07B455}.Release|Any CPU.ActiveCfg = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
