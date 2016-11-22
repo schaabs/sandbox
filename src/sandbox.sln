@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.25420.1
+# Visual Studio 15
+VisualStudioVersion = 15.0.25914.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "sandbox.tools", "sandbox.tools\sandbox.tools.csproj", "{02E40DFA-4231-4C65-B87C-7CBD61839246}"
 EndProject
@@ -12,6 +12,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "sandbox.entity", "sandbox.entity\sandbox.entity.csproj", "{4907EE3D-FF02-4959-A09F-7C6CD9E23CF3}"
 EndProject
 Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "sandbox.python", "sandbox.python\sandbox.python.pyproj", "{906C6FF2-1106-4DCB-9A50-1CC89D07B455}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "sandbox.netcore", "sandbox.netcore\sandbox.netcore.csproj", "{780BEEFE-3381-492D-80D0-66176356C989}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -37,6 +39,10 @@ Global
 		{4907EE3D-FF02-4959-A09F-7C6CD9E23CF3}.Release|Any CPU.Build.0 = Release|Any CPU
 		{906C6FF2-1106-4DCB-9A50-1CC89D07B455}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{906C6FF2-1106-4DCB-9A50-1CC89D07B455}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{780BEEFE-3381-492D-80D0-66176356C989}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{780BEEFE-3381-492D-80D0-66176356C989}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{780BEEFE-3381-492D-80D0-66176356C989}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{780BEEFE-3381-492D-80D0-66176356C989}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
