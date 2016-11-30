@@ -3,9 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using sandbox.tools;
+using sandbox.common;
 using System.IO;
 using stress.codegen;
+using System.Security.Cryptography;
 
 namespace sandbox.temp
 {
@@ -18,24 +19,34 @@ namespace sandbox.temp
 
         static void Run()
         {
-            var lti = new LoadTestInfo("")
+            RunAsync().GetAwaiter().GetResult();
+        }
+
+        static async Task RunAsync()
+        {
+            Random r = new Random();
+
+            using (var sha1a = SHA1.Create())
+            using (var fstream = await r.CreateFileAsync())
+            using (var cryptStream = new CryptoStream(fstream, sha1a, CryptoStreamMode.Read))
+            using (var tempFile = new FileStream(Path.GetTempFileName(), FileMode.Create, FileAccess.ReadWrite, FileShare.None, 4096, FileOptions.Asynchronous | FileOptions.DeleteOnClose))
             {
-                SourceDirectory = @"d:\temp\sandbox\out",
-                TestName = "HelloWorld_0001",
-                EnvironmentVariables = new Dictionary<string, string>()
+                await cryptStream.CopyToAsync(tempFile);
+
+                await tempFile.FlushAsync();
+
+                print(sha1a.Hash.ToHexString());
+
+                fstream.Position = 0;
+
+                using (var sha1e = SHA1.Create())
                 {
-                    { "Foo",  "1" },
-                    { "Bar",  "3" }
-                },
-                SuiteConfig = new LoadSuiteConfig() { Host = "corerun" },
-
-            };
+                    print(sha1e.ComputeHash(fstream).ToHexString());
+                    
+                }
 
 
-
-            var shgen = new ExecutionFileGeneratorLinux();
-
-            shgen.GenerateSourceFile(lti);
+            }
         }
     }
 

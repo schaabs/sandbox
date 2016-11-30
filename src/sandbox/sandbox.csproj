@@ -9,9 +9,10 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>sandbox</RootNamespace>
     <AssemblyName>sandbox</AssemblyName>
-    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -53,9 +54,9 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\sandbox.tools\sandbox.tools.csproj">
-      <Project>{02e40dfa-4231-4c65-b87c-7cbd61839246}</Project>
-      <Name>sandbox.tools</Name>
+    <ProjectReference Include="..\sandbox.common\sandbox.common.csproj">
+      <Project>{94e0dcea-902f-4978-a373-d122b2b37be9}</Project>
+      <Name>sandbox.common</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

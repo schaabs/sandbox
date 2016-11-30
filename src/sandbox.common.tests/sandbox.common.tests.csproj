@@ -8,8 +8,8 @@
     <ProjectGuid>{6854281B-15B5-4CD9-875A-6CBDC00C167D}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>sandbox.tools.tests</RootNamespace>
-    <AssemblyName>sandbox.tools.tests</AssemblyName>
+    <RootNamespace>sandbox.common.tests</RootNamespace>
+    <AssemblyName>sandbox.common.tests</AssemblyName>
     <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <NuGetPackageImportStamp>
