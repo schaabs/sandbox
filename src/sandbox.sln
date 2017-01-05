@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "sandbox.common", "sandbox.c
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "sandbox.common.tests", "sandbox.common.tests\sandbox.common.tests.csproj", "{6854281B-15B5-4CD9-875A-6CBDC00C167D}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "sandbox.common.core", "sandbox.common\sandbox.common.core.csproj", "{71DBD5F7-62B4-4B6D-8298-BCD0034CA79C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -43,6 +45,10 @@ Global
 		{6854281B-15B5-4CD9-875A-6CBDC00C167D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6854281B-15B5-4CD9-875A-6CBDC00C167D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6854281B-15B5-4CD9-875A-6CBDC00C167D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{71DBD5F7-62B4-4B6D-8298-BCD0034CA79C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{71DBD5F7-62B4-4B6D-8298-BCD0034CA79C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{71DBD5F7-62B4-4B6D-8298-BCD0034CA79C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{71DBD5F7-62B4-4B6D-8298-BCD0034CA79C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
