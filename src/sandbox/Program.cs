@@ -20,15 +20,12 @@ namespace sandbox.temp
         
         public static void Run()
         {
-            var args = new DumplingConfigCommandArgs();
+            var args = new DumplingUploadCommandArgs();
 
             args.Initialize();
-
-            ConsoleBuffer buff = new ConsoleBuffer();
-
-            args.AppendHelp(buff);
-
-            print(buff);
+            
+            args.WriteHelp();
+            
         }
         
 
@@ -42,6 +39,7 @@ namespace sandbox.temp
     {
         public DumplingArgs(string command) : base(command)
         {
+            CommandPrefix = "dumpling";
         }
 
         public Flag Verbose { get; private set; } = new Flag() { Name = "verbose", Default = false, Help = "indicates that  all critical, standard, and diagnostic messages should be output" };
@@ -74,7 +72,11 @@ namespace sandbox.temp
         {
         }
 
-        public Arg<string> DumpPath { get; private set; } = new Arg<string> { Name = "dumppath", Help = "path to teh dumpfile to be uploaded" };
-    }
+        public Arg<string> DumpPath { get; private set; } = new Arg<string> { Name = "dumppath", Help = "path to the dumpfile to be uploaded" };
+
+        public Arg<string> DisplayName { get; private set; } = new Arg<string> { Name = "displayname", Help = "the name to be displayed in reports for the uploaded dump.  This argument is ignored unless --dumppath is specified" };
+
+        public VArg<string> IncludePaths { get; private set; } = new VArg<string> { Name = "incpaths", Help = "paths to files or directories to be included in the upload. Note: directories will recursively include all subdirectories." };
+        }
 
 }

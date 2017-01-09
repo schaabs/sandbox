@@ -7,32 +7,45 @@ using System.Threading;
 
 namespace sandbox.common
 {
-    public class ConsoleBuffer
+    public interface IConsoleBuffer
     {
-        private StringBuilder _buff = new StringBuilder();
+        void SetIndent(int indent);
+
+        int CurrentPosition { get; }
+
+        int RemainingLineLength { get; }
+
+        void Append<T>(T val);
+
+        void AppendLine<T>(T val);
+
+        void AppendLine();
+    }
+
+    internal class ConsoleBuffer : IConsoleBuffer
+    {
+        private StringBuilder _linebuff = new StringBuilder(100);
+        private StringBuilder _altlinebuff = new StringBuilder(100);
         private int _linemax = 100;
-        private int _linepos = 0;
         private int _indent = 0;
 
         public void SetIndent(int indent)
         {
             _indent = indent;
 
-            if(indent > _linepos)
+            if(indent > CurrentPosition)
             {
-                _buff.Append(' ', indent - _linepos + 1);
-
-                _linepos = indent;
+                _linebuff.Append(' ', indent - CurrentPosition - 1);
             }
         }
 
-        public int CurrentPosition { get { return _linepos; } }
+        public int CurrentPosition { get { return _linebuff.Length - 1; } }
 
         public int RemainingLineLength
         {
             get
             {
-                return _linemax - _linepos - 1;
+                return _linemax - CurrentPosition - 1;
             }
         }
 
@@ -40,33 +53,15 @@ namespace sandbox.common
         {
             var str = val.ToString();
 
-            //if str will fit on the current line
-            if (str.Length <= RemainingLineLength)
-            {
-                _buff.Append(str);
+            int appendLen = Math.Min(str.Length, RemainingLineLength);
 
-                _linepos += str.Length;
-            }
-            else if (str.Length < _linemax - _indent)
+            _linebuff.Append(str, 0, appendLen);
+            
+            if (appendLen < str.Length)
             {
                 NextLine();
 
-                Append(str);
-            }
-            else
-            {
-                int breakIx = str.LastIndexOf(" ", RemainingLineLength - 1);
-
-                if (breakIx <= 0)
-                {
-                    breakIx = RemainingLineLength - 1;
-                }
-
-                _buff.Append(str, 0, breakIx + 1);
-
-                NextLine();
-
-                Append(str.Substring(breakIx + 1));
+                Append(str.Substring(appendLen));
             }
         }
         
@@ -82,29 +77,58 @@ namespace sandbox.common
             NextLine();
         }
 
-        public void NextLine()
+        private void NextLine()
         {
-            _buff.AppendLine();
+            int linelen = _linebuff.Length;
+
+            if (_linebuff.Length == _linemax)
+            {
+                //if the line buffer is full find the last whitespace in the line buff
+                for(int i = _linebuff.Length - 1; i > 0; i--)
+                {
+                    if(char.IsWhiteSpace(_linebuff[i]))
+                    {
+                        linelen = i + 1;
+
+                        break;
+                    }
+                }
+            }
+
+            for(int i = 0; i < linelen; i++)
+            {
+                Console.Write(_linebuff[i]);
+            }
+
+            Console.WriteLine();
 
             if (_indent > 0)
             {
-                _buff.Append(' ', _indent);
+                _altlinebuff.Append(' ', _indent);
             }
 
-            _linepos = _indent;
-        }
+            if(_linebuff.Length > linelen)
+            {
+                for(int i = linelen; i < _linebuff.Length; i++)
+                {
+                    _altlinebuff.Append(_linebuff[i]);
+                }
+            }
 
-        public override string ToString()
-        {
-            return _buff.ToString();
+            var temp = _linebuff.Clear();
+
+            _linebuff = _altlinebuff;
+
+            _altlinebuff = temp;
         }
 
     }
+
     public abstract class ArgParser
     {
-        private List<Arg> _pargs = new List<Arg>();
+        private List<IArg> _pargs = new List<IArg>();
 
-        private Dictionary<string, Arg> _nargs = new Dictionary<string, Arg>();
+        private Dictionary<string, IArg> _nargs = new Dictionary<string, IArg>();
 
         public ArgParser(string command)
         {
@@ -120,15 +144,36 @@ namespace sandbox.common
 
         public string Command { get; private set; }
         
-        public virtual void AppendUsage(ConsoleBuffer buff)
+        public string CommandPrefix { get; set; }
+
+        public void WriteHelp()
+        {
+            var buff = new ConsoleBuffer();
+
+            AppendHelp(buff);
+        }
+
+        public virtual void Parse(string[] vargs)
+        {
+
+        }
+
+        public virtual void AppendUsage(IConsoleBuffer buff)
         {
             buff.AppendLine("usage:");
+
+            if (!string.IsNullOrWhiteSpace(CommandPrefix))
+            {
+                buff.Append(CommandPrefix);
+
+                buff.Append(" ");
+            }
 
             buff.Append(Command);
 
             buff.Append(" ");
 
-            buff.SetIndent(buff.CurrentPosition);
+            buff.SetIndent(buff.CurrentPosition + 1);
 
             for (int i = 0; i < _pargs.Count; i++)
             {
@@ -147,7 +192,7 @@ namespace sandbox.common
             buff.SetIndent(0);
         }
 
-        public virtual void AppendHelp(ConsoleBuffer buff)
+        public virtual void AppendHelp(IConsoleBuffer buff)
         {
             AppendUsage(buff);
 
@@ -160,22 +205,25 @@ namespace sandbox.common
                 buff.AppendLine("positional arguments:");
 
                 buff.AppendLine();
-
+                
                 for (int i = 0; i < _pargs.Count; i++)
                 {
                     _pargs[i].AppendHelp(buff);
 
                     buff.AppendLine();
                 }
+                
             }
 
             if (_nargs.Count > 0)
             {
+                buff.AppendLine();
+
                 buff.AppendLine("named arguments:");
 
                 buff.AppendLine();
-
-                foreach(var narg in _nargs.Values)
+                
+                foreach (var narg in _nargs.Values)
                 {
                     narg.AppendHelp(buff);
 
@@ -189,30 +237,30 @@ namespace sandbox.common
         {
             int curpos = 0;
 
-            bool pvargFound = false;
+            bool poptFound = false;
 
             //load the positional arguments
-            foreach(var parg in this.GetType().GetRuntimeProperties().Where(p => p.PropertyType.GetTypeInfo().IsSubclassOf(typeof(Arg))).Select(p => p.GetValue(this)).Cast<Arg>().Where(a => a.Position.HasValue).OrderBy(a => a.Position.Value))
+            foreach(var parg in this.GetType().GetRuntimeProperties().Where(p => typeof(IArg).GetTypeInfo().IsAssignableFrom(p.PropertyType.GetTypeInfo())).Select(p => p.GetValue(this)).Cast<IArg>().Where(a => a.Position.HasValue).OrderBy(a => a.Position.Value))
             {
                 if(parg.Position.Value != curpos)
                 {
                     throw new ArgumentException($"Invalid positional arguments, no positional argument is specified for position {curpos}");
                 }
 
-                if(pvargFound)
+                if(poptFound)
                 {
-                    throw new ArgumentException($"Invalid positional arguments, no positional arguments are allowed after a positional argument of variable length", parg.Name);
+                    throw new ArgumentException($"Invalid positional arguments, optional and variable length positional arguments can only be the last positional arg", parg.Name);
                 }
 
                 _pargs.Add(parg);
 
                 curpos++;
 
-                pvargFound = (parg as IVArg)?.Count <= 0;
+                poptFound = !parg.Required || (parg as IVArg)?.Count <= 0;
             }
 
             //load the named arguments
-            foreach (var narg in this.GetType().GetRuntimeProperties().Where(p => p.PropertyType.GetTypeInfo().IsSubclassOf(typeof(Arg))).Select(p => p.GetValue(this)).Cast<Arg>().Where(a => !a.Position.HasValue))
+            foreach (var narg in this.GetType().GetRuntimeProperties().Where(p => typeof(IArg).GetTypeInfo().IsAssignableFrom(p.PropertyType.GetTypeInfo())).Select(p => p.GetValue(this)).Cast<IArg>().Where(a => !a.Position.HasValue))
             {
                 if(string.IsNullOrWhiteSpace(narg.Name))
                 {
@@ -229,7 +277,24 @@ namespace sandbox.common
         }
     }
 
-    public abstract class Arg
+    public interface IArg
+    {
+        string Name { get; }
+
+        string Help { get; }
+
+        string MetaVar { get; }
+
+        int? Position { get; }
+
+        bool Required { get; }
+
+        void AppendUsage(IConsoleBuffer buff);
+
+        void AppendHelp(IConsoleBuffer buff);
+    }
+
+    public abstract class ArgBase<T> : IArg
     {
         public string Name { get; set; } = null;
 
@@ -241,13 +306,6 @@ namespace sandbox.common
 
         public bool Required { get; set; } = false;
 
-        public abstract void AppendUsage(ConsoleBuffer buff);
-
-        public abstract void AppendHelp(ConsoleBuffer buff);
-    }
-
-    public abstract class ArgBase<T> : Arg
-    {
         protected ArgBase()
         {
             ParseFunc = ParseArgString;
@@ -298,7 +356,7 @@ namespace sandbox.common
             }
         }
 
-        public override void AppendUsage(ConsoleBuffer buff)
+        public virtual void AppendUsage(IConsoleBuffer buff)
         {
             if(!Required)
             {
@@ -313,16 +371,25 @@ namespace sandbox.common
             }
         }
 
-        public override void AppendHelp(ConsoleBuffer buff)
+        public virtual void AppendHelp(IConsoleBuffer buff)
         {
+            buff.SetIndent(8);
+
             AppendHelpTitle(buff);
 
-            buff.AppendLine();
+            buff.SetIndent(32);
+
+            if(buff.CurrentPosition >= 32)
+            {
+                buff.AppendLine();
+            }
 
             buff.Append(Help);
+
+            buff.SetIndent(0);
         }
 
-        protected virtual void AppendHelpTitle(ConsoleBuffer buff)
+        protected virtual void AppendHelpTitle(IConsoleBuffer buff)
         {
             if (Position != null)
             {
@@ -340,7 +407,7 @@ namespace sandbox.common
             }
         }
 
-        protected virtual void AppendMetaValue(ConsoleBuffer buff)
+        protected virtual void AppendMetaValue(IConsoleBuffer buff)
         {
             buff.Append(MetaVar ?? Name?.ToUpperInvariant() ?? typeof(T).Name);
         }
@@ -373,7 +440,7 @@ namespace sandbox.common
             }
         }
 
-        protected override void AppendHelpTitle(ConsoleBuffer buff)
+        protected override void AppendHelpTitle(IConsoleBuffer buff)
         {
             buff.Append("--");
 
@@ -402,7 +469,7 @@ namespace sandbox.common
             return val;
         }
 
-        protected override void AppendMetaValue(ConsoleBuffer buff)
+        protected override void AppendMetaValue(IConsoleBuffer buff)
         {
             buff.Append("(");
             
@@ -458,7 +525,7 @@ namespace sandbox.common
             }
         }
 
-        protected override void AppendMetaValue(ConsoleBuffer buff)
+        protected override void AppendMetaValue(IConsoleBuffer buff)
         {
             string metaElemValue = MetaVar ?? Name?.ToUpperInvariant();
 
