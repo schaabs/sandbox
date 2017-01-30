@@ -155,7 +155,19 @@ namespace sandbox.common
 
         public virtual void Parse(string[] vargs)
         {
+            //if the command is not null ignore the first argument as it is expected to be the command arg
+            int i = string.IsNullOrWhiteSpace(Command) ? 0 : 1;
 
+            //parse the positional arguments
+            foreach(var pArg in _pargs)
+            {
+                var argCount = (pArg as IVArg)?.Count ?? 1;
+
+                if(argCount == 1)
+                {
+                    
+                }
+            }
         }
 
         public virtual void AppendUsage(IConsoleBuffer buff)
@@ -289,6 +301,8 @@ namespace sandbox.common
 
         bool Required { get; }
 
+        void ParseArgStrings(IEnumerable<string> vargs);
+
         void AppendUsage(IConsoleBuffer buff);
 
         void AppendHelp(IConsoleBuffer buff);
@@ -411,6 +425,122 @@ namespace sandbox.common
         {
             buff.Append(MetaVar ?? Name?.ToUpperInvariant() ?? typeof(T).Name);
         }
+
+        public abstract void ParseArgStrings(IEnumerable<string> vargs);
+    }
+
+    public interface IVArg : IArg
+    {
+        int Count { get; }
+    }
+
+    public class VArg<T> : ArgBase<T>, IVArg
+    {
+        public int Count { get; set; } = 0;
+
+        public T[] DefaultValues { get; set; }
+
+        public T[] Values { get; protected set; }
+
+        public virtual void Parse(string[] vargs)
+        {
+            if (Count > 0 && vargs.Length != Count)
+            {
+                throw new ArgumentException($"The number of specified values for the argument did not match the expected count of {Math.Abs(Count)}", Name);
+            }
+
+            if (Count < 0 && vargs.Length > Math.Abs(Count))
+            {
+                throw new ArgumentException($"The number of specified values for the argument exceeded the maximum of {Math.Abs(Count)}", Name);
+            }
+
+            if (Required && vargs.Length == 0)
+            {
+                throw new ArgumentException("At least one value must be specified for the required argument", Name);
+            }
+
+            Values = new T[vargs.Length];
+
+            for (int i = 0; i < vargs.Length; i++)
+            {
+                Values[i] = ParseFunc(vargs[i]);
+            }
+        }
+
+        public override void ParseArgStrings(IEnumerable<string> vargs)
+        {
+            this.Parse(vargs.ToArray());
+        }
+
+        protected override void AppendMetaValue(IConsoleBuffer buff)
+        {
+            string metaElemValue = MetaVar ?? Name?.ToUpperInvariant();
+
+            if (!Required || Count < 0)
+            {
+                buff.Append("[");
+            }
+
+            if (Count <= 0)
+            {
+                buff.Append(metaElemValue);
+
+                if (Count == 0 || Count <= -2)
+                {
+                    buff.Append(" [");
+
+                    buff.Append(metaElemValue);
+
+                    if (Count == 0 || Count <= -3)
+                    {
+                        buff.Append(" ...");
+
+                        if (Count != 0)
+                        {
+                            buff.Append("(");
+
+                            buff.Append(Math.Abs(Count));
+
+                            buff.Append("X MAX)");
+                        }
+                    }
+
+                    buff.Append("]");
+                }
+            }
+            else
+            {
+                for (int i = 0; i < Count && i < 3; i++)
+                {
+                    buff.Append(metaElemValue);
+
+                    buff.Append(i + 1);
+
+                    if (i < Count - 1)
+                    {
+                        buff.Append(" ");
+                    }
+                }
+
+                if (Count > 3)
+                {
+                    buff.Append(" ... ");
+                }
+
+                if (Count > 2)
+                {
+                    buff.Append(metaElemValue);
+
+                    buff.Append(Count);
+                }
+
+            }
+
+            if (!Required || Count < 0)
+            {
+                buff.Append("]");
+            }
+        }
     }
 
     public class Arg<T> : ArgBase<T>
@@ -427,6 +557,20 @@ namespace sandbox.common
             }
 
             Value = ParseFunc(strVal);
+        }
+
+        public override void ParseArgStrings(IEnumerable<string> vargs)
+        {
+            var argarr = vargs.ToArray();
+
+            if(argarr.Length > 1)
+            {
+                throw new ArgumentException($"unexpected argument {argarr[1]}");
+            }
+
+            var argStr = (argarr.Length == 0) ? null : argarr[0];
+
+            Parse(argStr);
         }
     }
 
@@ -485,153 +629,5 @@ namespace sandbox.common
 
             buff.Append(")");
         }
-    }
-
-    public interface IVArg
-    {
-        int Count { get; }
-    }
-
-    public class VArg<T> : ArgBase<T>, IVArg
-    {
-        public int Count { get; set; } = 0;
-
-        public T[] DefaultValues { get; set; }
-
-        public T[] Values { get; protected set; }
-
-        public virtual void Parse(string[] vargs)
-        {
-            if (Count > 0 && vargs.Length != Count)
-            {
-                throw new ArgumentException($"The number of specified values for the argument did not match the expected count of {Math.Abs(Count)}", Name);
-            }
-
-            if (Count < 0 && vargs.Length > Math.Abs(Count))
-            {
-                throw new ArgumentException($"The number of specified values for the argument exceeded the maximum of {Math.Abs(Count)}", Name);
-            }
-
-            if(Required && vargs.Length == 0)
-            {
-                throw new ArgumentException("At least one value must be specified for the required argument", Name);
-            }
-
-            Values = new T[vargs.Length];
-            
-            for(int i = 0; i < vargs.Length; i++)
-            {
-                Values[i] = ParseFunc(vargs[i]);
-            }
-        }
-
-        protected override void AppendMetaValue(IConsoleBuffer buff)
-        {
-            string metaElemValue = MetaVar ?? Name?.ToUpperInvariant();
-
-            if(!Required || Count < 0)
-            {
-                buff.Append("[");
-            }
-
-            if (Count <= 0)
-            {
-                buff.Append(metaElemValue);
-
-                if (Count == 0 || Count <= -2)
-                {
-                    buff.Append(" [");
-
-                    buff.Append(metaElemValue);
-
-                    if (Count == 0 || Count <= -3)
-                    {
-                        buff.Append(" ...");
-
-                        if (Count != 0)
-                        {
-                            buff.Append("(");
-
-                            buff.Append(Math.Abs(Count));
-
-                            buff.Append("X MAX)");
-                        }
-                    }
-
-                    buff.Append("]");
-                }
-            }
-            else
-            {
-                for(int i = 0; i < Count && i < 3; i++)
-                {
-                    buff.Append(metaElemValue);
-
-                    buff.Append(i + 1);
-
-                    if(i < Count - 1)
-                    {
-                        buff.Append(" ");
-                    }
-                }
-
-                if(Count > 3)
-                {
-                    buff.Append(" ... ");
-                }
-
-                if (Count > 2)
-                {
-                    buff.Append(metaElemValue);
-
-                    buff.Append(Count);
-                }
-
-            }
-
-            if (!Required || Count < 0)
-            {
-                buff.Append("]");
-            }
-        }
-    }
-
-    public abstract class DumplingArgs : ArgParser
-    {
-        public DumplingArgs(string command) : base(command)
-        {
-        }
-
-        public Flag Verbose { get; private set; } = new Flag() { Name = "verbose", Default = false, Help = "indicates that  all critical, standard, and diagnostic messages should be output" };
-
-        public Flag Squelch { get; private set; } = new Flag() { Name = "squelch", Default = false, Help = "indicates that only critical messages should be ouput" };
-
-        public Flag NoPrompt { get; private set; } = new Flag() { Name = "noprompt", Default = false, Help = "suppress prompts for user input" };
-
-        public Arg<string> LogPath { get; private set; } = new Arg<string>() { Name = "logpath", Help = "the path to a log file for appending messge output" };
-
-        public Arg<string> Url { get; private set; } = new Arg<string>() { Name = "url", Help = "url of the dumpling service for the connected client" };
-
-        public Arg<string> ConfigPath { get; private set; } = new Arg<string>() { Name = "configpath", Help = "path to the saved dumpling client configuration file" };
-
-        public Arg<string> DbgPath { get; private set; } = new Arg<string> { Name = "dbgpath", Help = "path to debugger to be used by the dumpling client for debugging and triage" };
-    }
-
-    public class DumplingConfigCommandArgs : DumplingArgs
-    {
-        public DumplingConfigCommandArgs() : base("config")
-        {
-        }
-
-        public Choice<string> Action { get; private set; } = new Choice<string>() { Position = 0, Choices = new string[] { "dump", "save", "clear" }, Required = true, Help = "specifies the action to take on the dumpling client config" };
-    }
-
-    public class DumplingUploadCommandArgs : DumplingArgs
-    {
-        public DumplingUploadCommandArgs() : base("upload")
-        {
-        }
-
-        public Arg<string> DumpPath { get; private set; } = new Arg<string> { Name = "dumppath", Help = "path to teh dumpfile to be uploaded" };
     }
 }

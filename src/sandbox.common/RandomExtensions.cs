@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace sandbox.common
 {
-    public static class RandomEx
+    public static class RandomExtensions
     {
         public static async Task<FileStream> CreateFileAsync(this Random rand, long cbyte = -1, string path = null, FileMode? fileMode = null, FileShare? fileShare = null, FileOptions? fileOptions = null, int? bufferSize = null)
         {

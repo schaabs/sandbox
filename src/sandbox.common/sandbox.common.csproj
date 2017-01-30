@@ -42,8 +42,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ArgParser.cs" />
+    <Compile Include="IListExtensions.cs" />
     <Compile Include="MiscEx.cs" />
-    <Compile Include="RandomEx.cs" />
+    <Compile Include="RandomExtensions.cs" />
     <Compile Include="Retry.cs" />
     <Compile Include="Sandbox.cs" />
     <Compile Include="StreamFork.cs" />

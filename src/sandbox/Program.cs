@@ -8,9 +8,44 @@ using System.IO;
 using stress.codegen;
 using System.Security.Cryptography;
 using Xunit;
+using System.Threading;
 
 namespace sandbox.temp
 {
+    class FinalizeReportingObject
+    {
+        private static int s_nextid;
+        private static object s_reportlock = new object();
+        public static TextWriter s_finalizeout;
+        public static TextWriter s_allocout;
+
+        private int _id;
+
+        public FinalizeReportingObject()
+        {
+            _id = Interlocked.Increment(ref s_nextid);
+
+            if (s_allocout != null)
+            {
+                lock (s_reportlock)
+                {
+                    s_allocout.WriteLine(_id.ToString("X8"));
+                }
+            }
+        }
+
+        ~FinalizeReportingObject()
+        {
+            if(s_finalizeout != null)
+            {
+                lock (s_reportlock)
+                {
+                    s_finalizeout.WriteLine(_id.ToString("X8"));
+                }
+            }
+        }
+    }
+
     class Program : Sandbox
     {
         static void Main(string[] args)
@@ -20,18 +55,54 @@ namespace sandbox.temp
         
         public static void Run()
         {
-            var args = new DumplingUploadCommandArgs();
+            //var args = new DumplingUploadCommandArgs();
 
-            args.Initialize();
-            
-            args.WriteHelp();
-            
+            //args.Initialize();
+
+            //args.WriteHelp();
+
+            using (var filealloc = File.CreateText(@"d:\temp\finalizerAlloc3.txt"))
+            using (var filefinal = File.CreateText(@"d:\temp\finalizerRun3.txt"))
+            {
+                FinalizeReportingObject.s_finalizeout = filefinal;
+                FinalizeReportingObject.s_allocout = filealloc;
+
+                var timoutSource = new CancellationTokenSource(5000);
+
+                Task[] allocTasks = new Task[2];
+
+                allocTasks[0] = Task.Run(() => AllocateLoop(() => new FinalizeReportingObject(), timoutSource.Token));
+                allocTasks[1] = Task.Run(() => AllocateLoop(() => new object(), timoutSource.Token));
+
+
+                Task.WaitAll(allocTasks);
+
+                GC.Collect(2, GCCollectionMode.Forced, true);
+
+                GC.WaitForPendingFinalizers();
+            }
+                
         }
         
 
-        public static async Task RunAsync()
+        public static void AllocateLoop(Func<object> allocation, CancellationToken token)
         {
-            await Task.CompletedTask;
+            object[][] jaggedArr = new object[100][];
+
+            while (!token.IsCancellationRequested)
+            {
+                for (int i = 0; i < jaggedArr.Length && !token.IsCancellationRequested; i++)
+                {
+                    jaggedArr[i] = new object[2000];
+
+                    for(int j = 0; j < jaggedArr[i].Length && !token.IsCancellationRequested; j++)
+                    {
+                        jaggedArr[i][j] = new FinalizeReportingObject();
+                    }
+                }
+            }
+
+            jaggedArr = null;
         }
     }
 
