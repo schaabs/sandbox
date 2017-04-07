@@ -289,6 +289,20 @@ namespace sandbox.common
             return (Char)rand.NextInt32(min, max);
         }
 
+        public static DateTime NextDateTime(this Random rand)
+        {
+            return rand.NextDateTime(DateTime.MinValue, DateTime.MaxValue);
+        }
+
+        public static DateTime NextDateTime(this Random rand, DateTime min, DateTime max)
+        {
+            if (min > max)
+            {
+                throw new ArgumentOutOfRangeException("min");
+            }
+
+            return new DateTime(rand.NextInt64(min.Ticks, max.Ticks));
+        }
         /// <summary>
         /// Chooses a finite range falling between the specified minimum and maximum
         /// </summary>
