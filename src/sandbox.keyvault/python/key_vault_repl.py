@@ -104,6 +104,8 @@ class KV_Auth(object):
 
 
 class KV_Repl(object):
+    _repl_break_commands = set(('quit', 'q', 'back', 'b'))
+
     def __init__(self, config):
         self._auth = KV_Auth(config)
         self._config = config
@@ -116,7 +118,9 @@ class KV_Repl(object):
     def _vault_index(self):
         selection = None
 
-        while selection != 'q' and selection != 'quit':
+        exit_loop = False
+
+        while not exit_loop:
             print('\nAvailable Vaults:\n')
 
             vaults = self._get_vault_list()
@@ -128,10 +132,9 @@ class KV_Repl(object):
 
             selection = input('> ')
 
-            if selection == 'q' or selection == 'quit':
-                break
-            elif selection == 'a' or selection == 'add':
-                break
+
+            if selection == 'a' or selection == 'add':
+                continue
             else:
                 try:
                     i = int(selection)
@@ -142,13 +145,19 @@ class KV_Repl(object):
 
                 selection = self._vault_details(vaults[i])
 
+            if selection == 'q' or selection == 'quit':
+                exit_loop = True
+                continue
+
     def _add_vault(self):
         name = input('\nenter vault name:')
 
     def _vault_details(self, vault):
         selection = None
 
-        while selection != 'b' and selection != 'back' and selection == 'q' and selection == 'quit':
+        exit_loop = False
+
+        while not exit_loop:
             vault_info = self._mgmt_client.vaults.get(self._config.resource_group, vault.name)
 
             print('\nName:\t%s' % vault_info.name)
@@ -162,26 +171,35 @@ class KV_Repl(object):
             selection = input('> ')
 
             if selection == 's' or selection == 'secrets':
-                self._secret_index(vault_info)
+                selection = self._secret_index(vault_info)
             elif selection == 'k' or selection == 'keys':
                 print('\nnot yet implemented\n')
                 continue
             elif selection == 'c' or selection == 'certificates':
                 print('\nnot yet implemented\n')
                 continue
-            elif selection == 'b' or selection == 'back' or selection == 'q' or selection == 'quit':
-                continue
             else:
                 print('invalid input')
                 continue
 
+            if selection == 'b' or selection == 'back':
+                selection = None
+                exit_loop = True
+                continue
+            elif selection == 'q' or selection == 'quit':
+                exit_loop = True
+                continue
+
+        return selection
+
     def _secret_index(self, vault_info):
         selection = None
+        exit_loop = False
 
-        while selection != 'b' and selection != 'back' and selection == 'q' and selection == 'quit':
+        while not exit_loop:
             print('\n%s Secrets:\n' % vault_info.name)
 
-            secrets = self._data_client.get_secrets(vault_info.properties.vault_uri)
+            secrets = [secret for secret in self._data_client.get_secrets(vault_info.properties.vault_uri)]
 
             for idx, s in enumerate(secrets):
                 print('%d. %s' % (idx, KV_Repl._get_secret_name_from_url(s.id)))
@@ -191,12 +209,13 @@ class KV_Repl(object):
             selection = input('> ')
 
             if selection == 'a' or selection == 'add':
-                print('\nnot yet implemented\n')
+                self._add_secret(vault_info)
                 continue
             elif selection == 'd' or selection == 'delete':
                 print('\nnot yet implemented\n')
                 continue
             elif selection == 'b' or selection == 'back' or selection == 'q' or selection == 'quit':
+                exit_loop = True
                 continue
             else:
                 try:
@@ -209,8 +228,17 @@ class KV_Repl(object):
                     print('invalid input')
                     continue
 
-                selection = self._vault_details(vaults[i])
+                print('%s = %s' % (KV_Repl._get_secret_name_from_url(secrets[i].id), self._data_client.get_secret(secrets[i].id).value))
 
+        return selection
+
+    def _add_secret(self, vault_info):
+        secret_name = input('\nSecret Name: ')
+        secret_value = input('Secret Value: ')
+
+        self._data_client.set_secret(vault_info.properties.vault_uri, secret_name, secret_value)
+
+        print('\nSecret %s added to vault %s' % (secret_name, vault_info.name))
 
     @staticmethod
     def _get_secret_name_from_url(url):
