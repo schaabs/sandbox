@@ -1,6 +1,9 @@
 #!/usr/local/bin/python
 from azure.common.credentials import ServicePrincipalCredentials
 from azure.common.credentials import UserPassCredentials
+from azure.mgmt.keyvault.models import Sku
+from azure.mgmt.keyvault.models import VaultCreateOrUpdateParameters, VaultProperties, SkuName, AccessPolicyEntry, \
+    Permissions, KeyPermissions, SecretPermissions, CertificatePermissions
 from azure.common.credentials import BasicTokenAuthentication
 from azure.keyvault import KeyVaultClient
 from azure.mgmt.keyvault import KeyVaultManagementClient
@@ -8,8 +11,12 @@ from adal import token_cache
 import adal
 import json
 import os
+import sys
+
 
 CLIENT_ID = '8fd4d3c4-efea-49aa-b1de-2c33c22da56e' # Azure cli
+CLIENT_OID = '8694d835-b4e2-419a-a315-b13c854166e2'
+CLIENT_TENANT_ID = 'a7fc734e-9961-43ce-b4de-21b8b38403ba'
 KEY_VAULT_RESOURCE = 'https://vault.azure.net'
 AZURE_MANAGEMENT_RESOURCE2 = 'https://management.core.windows.net/'
 
@@ -26,6 +33,7 @@ class KV_Config(dict):
         self.user_id = ''
         self.resource_group = ''
         self.user_oid = ''
+        self.location = 'westus'
 
     def __getattr__(self, item):
         return self[item]
@@ -104,141 +112,169 @@ class KV_Auth(object):
 
 
 class KV_Repl(object):
-    _repl_break_commands = set(('quit', 'q', 'back', 'b'))
+
+    _repl_break_commands = set(('back', 'b'))
+
+    _repl_quit_commands = set(('quit', 'q'))
 
     def __init__(self, config):
         self._auth = KV_Auth(config)
         self._config = config
         self._mgmt_client = KeyVaultManagementClient(self._auth.get_arm_creds(), config.subscription_id)
         self._data_client = KeyVaultClient(self._auth.get_keyvault_creds())
+        self._selected_vault = None
+        self._current_index = None
 
     def start(self):
-        self._vault_index();
+        try:
+            self._vault_index_loop();
 
-    def _vault_index(self):
-        selection = None
+        except SystemExit:
+            print('\nuser exited\n')
 
-        exit_loop = False
+    def _continue_repl(self, display_action, break_commands=()):
+        display_action()
 
-        while not exit_loop:
-            print('\nAvailable Vaults:\n')
+        self._selection = input('> ').lower()
 
-            vaults = self._get_vault_list()
+        if self._selection in break_commands:
+            return None
 
-            for idx, vault in enumerate(vaults):
-                print('%d. %s' % (idx, vault.name))
+        elif self._selection in KV_Repl._repl_quit_commands:
+            sys.exit()
 
-            print('\n#:select vault (a)dd (d)elete (q)uit\n')
+        try:
+            self._selection = int(self._selection)
+        except ValueError:
+            pass
 
-            selection = input('> ')
+        return self._selection
 
 
-            if selection == 'a' or selection == 'add':
-                continue
+    def _display_vault_index(self):
+
+        print('\nAvailable Vaults:\n')
+
+        self._current_index = self._get_vault_list()
+
+        for idx, vault in enumerate(self._current_index):
+            print('%d. %s' % (idx, vault.name))
+
+        print('\n#:select | (a)dd | (d)elete | (q)uit')
+
+
+    def _vault_index_loop(self):
+        while self._continue_repl(self._display_vault_index) is not None:
+            vaults = self._current_index
+
+            if isinstance(self._selection, int):
+                i = self._selection
+
+                if i >= 0 and i < len(vaults):
+                    self._selected_vault = self._mgmt_client.vaults.get(self._config.resource_group, vaults[i].name)
+                    self._vault_detail_loop()
+                else:
+                    print('invalid vault index')
+
+            elif self._selection == 'a' or self._selection == 'add':
+                self._add_vault()
+
             else:
-                try:
-                    i = int(selection)
-
-                except ValueError:
-                    print('invalid input')
-                    continue
-
-                selection = self._vault_details(vaults[i])
-
-            if selection == 'q' or selection == 'quit':
-                exit_loop = True
-                continue
+                print('invalid input')
 
     def _add_vault(self):
         name = input('\nenter vault name:')
 
-    def _vault_details(self, vault):
-        selection = None
+        all_perms = Permissions()
+        all_perms.keys = [KeyPermissions.all]
+        all_perms.secrets = [SecretPermissions.all]
+        all_perms.certificates = [CertificatePermissions.all]
 
-        exit_loop = False
+        user_policy = AccessPolicyEntry(self._config.tenant_id, self._config.user_oid, all_perms)
 
-        while not exit_loop:
-            vault_info = self._mgmt_client.vaults.get(self._config.resource_group, vault.name)
+        app_policy = AccessPolicyEntry(CLIENT_TENANT_ID, CLIENT_OID, all_perms)
 
-            print('\nName:\t%s' % vault_info.name)
+        access_policies = [user_policy, app_policy]
 
-            print('Uri:\t%s' % vault_info.properties.vault_uri)
+        properties = VaultProperties(self._config.tenant_id, Sku(name='standard'), access_policies)
 
-            print('Id:\t%s' % vault_info.id)
+        properties.enabled_for_deployment = True
+        properties.enabled_for_disk_encryption = True
+        properties.enabled_for_template_deployment = True
 
-            print('\n(s)ecrets (k)eys (c)ertificates (b)ack (q)uit\n')
+        vault = VaultCreateOrUpdateParameters(self._config.location, properties)
 
-            selection = input('> ')
+        self._mgmt_client.vaults.create_or_update(self._config.resource_group, name, vault)
 
-            if selection == 's' or selection == 'secrets':
-                selection = self._secret_index(vault_info)
-            elif selection == 'k' or selection == 'keys':
+        print('vault %s created\n' % name)
+
+
+    def _display_selected_vault_detail(self):
+        print('\nName:\t%s' % self._selected_vault.name)
+        print('Uri:\t%s' % self._selected_vault.properties.vault_uri)
+        print('Id:\t%s' % self._selected_vault.id)
+
+        print('\n(s)ecrets (k)eys (c)ertificates (b)ack (q)uit\n')
+
+    def _vault_detail_loop(self):
+
+        while self._continue_repl(self._display_selected_vault_detail, break_commands=KV_Repl._repl_break_commands) is not None:
+
+            if self._selection == 's' or self._selection == 'secrets':
+                self._secret_index_loop()
+
+            elif self._selection == 'k' or self._selection == 'keys':
                 print('\nnot yet implemented\n')
-                continue
-            elif selection == 'c' or selection == 'certificates':
+
+            elif self._selection == 'c' or self._selection == 'certificates':
                 print('\nnot yet implemented\n')
-                continue
+
             else:
                 print('invalid input')
-                continue
 
-            if selection == 'b' or selection == 'back':
-                selection = None
-                exit_loop = True
-                continue
-            elif selection == 'q' or selection == 'quit':
-                exit_loop = True
-                continue
+    def _display_secret_index(self):
+        self._current_index = []
 
-        return selection
+        secret_iter = self._data_client.get_secrets(self._selected_vault.properties.vault_uri)
 
-    def _secret_index(self, vault_info):
-        selection = None
-        exit_loop = False
+        if secret_iter is not None:
+            try:
+                self._current_index = [secret for secret in secret_iter]
+            except TypeError:
+                pass
 
-        while not exit_loop:
-            print('\n%s Secrets:\n' % vault_info.name)
+        print('\n%s Secrets:\n' % self._selected_vault.name)
 
-            secrets = [secret for secret in self._data_client.get_secrets(vault_info.properties.vault_uri)]
+        for idx, s in enumerate(self._current_index):
+            print('%d. %s' % (idx, KV_Repl._get_secret_name_from_url(s.id)))
 
-            for idx, s in enumerate(secrets):
-                print('%d. %s' % (idx, KV_Repl._get_secret_name_from_url(s.id)))
+        print('\n#:show secret value (a)dd (d)elete (b)ack (q)uit\n')
 
-            print('\n#:show secret value (a)dd (d)elete (b)ack (q)uit\n')
+    def _secret_index_loop(self):
 
-            selection = input('> ')
+        while self._continue_repl(self._display_secret_index, break_commands=KV_Repl._repl_break_commands) is not None:
 
-            if selection == 'a' or selection == 'add':
-                self._add_secret(vault_info)
-                continue
-            elif selection == 'd' or selection == 'delete':
+            secrets = self._current_index
+
+            if isinstance(self._selection, int):
+                i = self._selection
+
+                if i >= 0 and i < len(secrets):
+                    print('\n%s = %s\n' % (KV_Repl._get_secret_name_from_url(secrets[i].id), self._data_client.get_secret(secrets[i].id).value))
+                else:
+                    print('invalid secret index')
+
+            elif self._selection == 'a' or self._selection == 'add':
+                self._add_secret()
+
+            elif self._selection == 'd' or self._selection == 'delete':
                 print('\nnot yet implemented\n')
-                continue
-            elif selection == 'b' or selection == 'back' or selection == 'q' or selection == 'quit':
-                exit_loop = True
-                continue
-            else:
-                try:
-                    i = int(selection)
 
-                except ValueError:
-                    i = -1
-
-                if i < 0 and i >= len(secrets):
-                    print('invalid input')
-                    continue
-
-                print('%s = %s' % (KV_Repl._get_secret_name_from_url(secrets[i].id), self._data_client.get_secret(secrets[i].id).value))
-
-        return selection
-
-    def _add_secret(self, vault_info):
+    def _add_secret(self):
         secret_name = input('\nSecret Name: ')
         secret_value = input('Secret Value: ')
-
-        self._data_client.set_secret(vault_info.properties.vault_uri, secret_name, secret_value)
-
-        print('\nSecret %s added to vault %s' % (secret_name, vault_info.name))
+        self._data_client.set_secret(self._selected_vault.properties.vault_uri, secret_name, secret_value)
+        print('\nSecret %s added to vault %s' % (secret_name, self._selected_vault.name))
 
     @staticmethod
     def _get_secret_name_from_url(url):
@@ -247,7 +283,6 @@ class KV_Repl(object):
 
     def _get_vault_list(self):
         vault_list = [vault for vault in self._mgmt_client.vaults.list()]
-
         return vault_list
 
 config = KV_Config()
@@ -260,7 +295,6 @@ repl.start()
 
 config.to_disk()
 
-print('success!')
 
 
 
