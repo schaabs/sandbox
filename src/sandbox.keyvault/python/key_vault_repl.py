@@ -1,6 +1,7 @@
 #!/usr/local/bin/python
 from azure.common.credentials import ServicePrincipalCredentials
 from azure.common.credentials import UserPassCredentials
+from azure.keyvault.generated.models import JsonWebKeyType
 from azure.mgmt.keyvault.models import Sku
 from azure.mgmt.keyvault.models import VaultCreateOrUpdateParameters, VaultProperties, SkuName, AccessPolicyEntry, \
     Permissions, KeyPermissions, SecretPermissions, CertificatePermissions
@@ -214,7 +215,7 @@ class KV_Repl(object):
         print('Uri:\t%s' % self._selected_vault.properties.vault_uri)
         print('Id:\t%s' % self._selected_vault.id)
 
-        print('\n(s)ecrets (k)eys (c)ertificates (b)ack (q)uit\n')
+        print('\n(s)ecrets | (k)eys | (c)ertificates | (e)ncrypt | (d)ecrypt | (b)ack | (q)uit\n')
 
     def _vault_detail_loop(self):
 
@@ -224,13 +225,36 @@ class KV_Repl(object):
                 self._secret_index_loop()
 
             elif self._selection == 'k' or self._selection == 'keys':
-                print('\nnot yet implemented\n')
+                self._key_index_loop()
 
             elif self._selection == 'c' or self._selection == 'certificates':
                 print('\nnot yet implemented\n')
 
+            elif self._selection == 'e' or self._selection == 'encrypt':
+                self._encrypt_file()
             else:
                 print('invalid input')
+
+    def _encrypt_file(self):
+        while True:
+            inpath = input('input file: ')
+
+            if os.path.isfile(inpath):
+                break
+            else:
+                print('error: file not found')
+
+        while True:
+            outpath = input('output file: ')
+
+
+
+
+    @staticmethod
+    def _prompt_for_file_path(prompt, verify_exists):
+        inpath = input(prompt)
+
+        while(os.path.)
 
     def _display_secret_index(self):
         self._current_index = []
@@ -246,7 +270,7 @@ class KV_Repl(object):
         print('\n%s Secrets:\n' % self._selected_vault.name)
 
         for idx, s in enumerate(self._current_index):
-            print('%d. %s' % (idx, KV_Repl._get_secret_name_from_url(s.id)))
+            print('%d. %s' % (idx, KV_Repl._get_name_from_url(s.id)))
 
         print('\n#:show secret value (a)dd (d)elete (b)ack (q)uit\n')
 
@@ -276,8 +300,53 @@ class KV_Repl(object):
         self._data_client.set_secret(self._selected_vault.properties.vault_uri, secret_name, secret_value)
         print('\nSecret %s added to vault %s' % (secret_name, self._selected_vault.name))
 
+    def _display_key_index(self):
+        self._current_index = []
+
+        key_iter = self._data_client.get_keys(self._selected_vault.properties.vault_uri)
+
+        if key_iter is not None:
+            try:
+                self._current_index = [secret for secret in key_iter]
+            except TypeError:
+                print('warning: caught TypeError')
+                pass
+
+        print('\n%s Keys:\n' % self._selected_vault.name)
+
+        for idx, k in enumerate(self._current_index):
+            print('%d. %s' % (idx, KV_Repl._get_name_from_url(k.kid)))
+
+        print('\n#:get key | (a)dd | (i)mport | (d)elete | (b)ack | (q)uit\n')
+
+    def _key_index_loop(self):
+
+        while self._continue_repl(self._display_key_index, break_commands=KV_Repl._repl_break_commands) is not None:
+
+            keys = self._current_index
+
+            if isinstance(self._selection, int):
+                i = self._selection
+
+                if i >= 0 and i < len(keys):
+                    print('\n%s = %s\n' % (KV_Repl._get_secret_name_from_url(keys[i].id), self._data_client.get_secret(keys[i].id).value))
+                else:
+                    print('invalid key index')
+
+            elif self._selection == 'a' or self._selection == 'add':
+                self._add_key()
+
+            elif self._selection == 'd' or self._selection == 'delete':
+                print('\nnot yet implemented\n')
+
+    def _add_key(self):
+        key_name = input('\nKey Name: ')
+
+        self._data_client.create_key(self._selected_vault.properties.vault_uri, key_name, kty=JsonWebKeyType.rsa.value)
+        print('\nSecret %s added to vault %s' % (key_name, self._selected_vault.name))
+
     @staticmethod
-    def _get_secret_name_from_url(url):
+    def _get_name_from_url(url):
         split = url.split('/')
         return split[len(split) - 1]
 
