@@ -28,7 +28,7 @@ class KV_Repl(object):
     _repl_quit_commands = set(('quit', 'q'))
 
     def __init__(self, config):
-        self._auth = KeyVaultAuth(config)
+        self._auth = KeyVaultAuth(config, CLIENT_ID)
         self._config = config
         self._mgmt_client = KeyVaultManagementClient(self._auth.get_arm_creds(), config.subscription_id)
         self._data_client = KeyVaultClient(self._auth.get_keyvault_creds())
