@@ -161,11 +161,6 @@ namespace filecrypto
 
                 await writeHandle.FlushAsync();
             }
-
-            
-
-
-            //await WriteHeaderToStream(stream, cancel);
         }
 
         private async Task DecryptContentFromStreamAsync(Stream input, Stream output, CancellationToken cancel)
