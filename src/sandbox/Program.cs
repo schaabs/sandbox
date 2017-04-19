@@ -10,11 +10,257 @@ using System.Security.Cryptography;
 using Xunit;
 using System.Threading;
 using System.IO.Compression;
+using System.Security;
+using System.Runtime.InteropServices;
 
 namespace sandbox.temp
 {
+    public class PasswordEncryptionProvider
+    {
+        // Create a new RNGCryptoServiceProvider.
+        private RNGCryptoServiceProvider rand = new RNGCryptoServiceProvider();
+
+        private const int HEADER_LENGTH = 256;
+
+        public PasswordEncryptionProvider(string password)
+        {
+            HeaderCryptoProvider = new AesCryptoServiceProvider();
+
+            HeaderCryptoProvider.Padding = PaddingMode.Zeros;
+
+            InitializeHeaderCryptoProvider(password);
+
+            ContentCryptoProvder = new AesCryptoServiceProvider();
+
+            ContentCryptoProvder.Padding = PaddingMode.Zeros;
+        }
+
+        private void InitializeHeaderCryptoProvider(string password)
+        {
+            var bpwd = new PasswordDeriveBytes(password, CreateRandomSalt(7));
+
+            TripleDESCryptoServiceProvider tdes = new TripleDESCryptoServiceProvider();
+
+            PrintKey(tdes.IV);
+
+            var key_init = bpwd.CryptDeriveKey("TripleDES", "SHA512", 192, tdes.IV);
+
+            var hashProvider = SHA256.Create();
+            
+            HeaderCryptoProvider.Key = hashProvider.ComputeHash(key_init);
+            
+            PasswordKeyHash = hashProvider.ComputeHash(HeaderCryptoProvider.Key);
+            
+            HeaderCryptoProvider.Padding = PaddingMode.Zeros;
+
+            byte[] iv = hashProvider.ComputeHash(PasswordKeyHash);
+
+            Array.Resize(ref iv, HeaderCryptoProvider.BlockSize / 8);
+
+            HeaderCryptoProvider.IV = iv;
+        }
+
+        public byte[] PasswordKeyHash { get; private set; }
+
+        public AesCryptoServiceProvider HeaderCryptoProvider { get; private set; }
+
+        public AesCryptoServiceProvider ContentCryptoProvder { get; private set; }
+
+        public async Task EncryptToStreamAsync(Stream input, Stream output, CancellationToken cancel)
+        {
+            await WriteHeaderToStream(output, cancel);
+
+            await WriteContentToStreamAsync(input, output, cancel);
+        }
+
+        public async Task DecryptFromStreamAsync(Stream input, Stream output, CancellationToken cancel)
+        {
+            await DecryptHeader(input, cancel);
+
+            await DecryptContentFromStreamAsync(input, output, cancel);
+        }
+        
+        public async Task RecryptStreamAsync(string password, Stream stream, CancellationToken cancel)
+        {
+            await DecryptHeader(stream, cancel);
+
+            InitializeHeaderCryptoProvider(password);
+
+            stream.Seek(0, SeekOrigin.Begin);
+
+            await WriteHeaderToStream(stream, cancel);
+        }
+
+        private async Task DecryptContentFromStreamAsync(Stream input, Stream output, CancellationToken cancel)
+        {
+            using (CryptoStream csDecrypt = new CryptoStream(input, ContentCryptoProvder.CreateDecryptor(), CryptoStreamMode.Read))
+            {
+                await csDecrypt.CopyToAsync(output);
+
+                await output.FlushAsync();
+            }
+        }
+
+        private async Task DecryptHeader(Stream input, CancellationToken cancel)
+        {
+            //read the hash and make sure it matches the password hash
+            for (int i = 0; i < PasswordKeyHash.Length; i++)
+            {
+                if (input.ReadByte() != PasswordKeyHash[i])
+                {
+                    throw new InvalidOperationException("invalid password");
+                }
+            }
+
+            //if the hash matches read the encrypted header
+            var header = new byte[HEADER_LENGTH];
+
+            await input.ReadAsync(header, 0, HEADER_LENGTH);
+
+            SetContentKeyFromHeader(header);
+
+        }
+
+        private void SetContentKeyFromHeader(byte[] headerBytes)
+        {
+            var decryptedBytes = new byte[headerBytes.Length];
+
+            using (MemoryStream inStream = new MemoryStream(headerBytes))
+            {
+                using (CryptoStream decryptStream = new CryptoStream(inStream, HeaderCryptoProvider.CreateDecryptor(), CryptoStreamMode.Read))
+                {
+                    if(decryptStream.Read(decryptedBytes, 0, decryptedBytes.Length) == decryptedBytes.Length)
+                    {
+                        var key = new byte[ContentCryptoProvder.Key.Length];
+
+                        var iv = new byte[ContentCryptoProvder.IV.Length];
+
+                        Array.ConstrainedCopy(decryptedBytes, GetKeyHeaderOffset(), key, 0, key.Length);
+
+                        Array.ConstrainedCopy(decryptedBytes, GetIVHeaderOffset(), iv, 0, iv.Length);
+
+                        ContentCryptoProvder.Key = key;
+
+                        ContentCryptoProvder.IV = iv;
+
+                        PrintKey(ContentCryptoProvder.Key);
+
+                        PrintKey(ContentCryptoProvder.IV);
+                    }
+                }
+            }
+        }
+
+        private async Task WriteHeaderToStream(Stream stream, CancellationToken cancel)
+        {
+            await stream.WriteAsync(PasswordKeyHash, 0, PasswordKeyHash.Length, cancel);
+
+            var contentKeyBytes = GetHeader();
+
+            var encryptedContentKeyBytes = new byte[contentKeyBytes.Length];
+
+            using (MemoryStream buffStream = new MemoryStream(encryptedContentKeyBytes))
+            {
+                using (CryptoStream csEncrypt = new CryptoStream(buffStream, HeaderCryptoProvider.CreateEncryptor(), CryptoStreamMode.Write))
+                {
+                    await csEncrypt.WriteAsync(contentKeyBytes, 0, contentKeyBytes.Length);    
+                }
+
+                await stream.WriteAsync(encryptedContentKeyBytes, 0, encryptedContentKeyBytes.Length);
+
+                await stream.FlushAsync();
+            }
+        }
+
+        private byte[] GetHeader()
+        {
+            var entropy = new byte[GetEntropyLength()];
+
+            rand.GetBytes(entropy);
+
+            return entropy.Concat(ContentCryptoProvder.Key.Concat(ContentCryptoProvder.IV)).ToArray();
+        }
+
+        private int GetKeyHeaderOffset()
+        {
+            return GetEntropyLength();
+        }
+
+        private int GetIVHeaderOffset()
+        {
+            return GetKeyHeaderOffset() + ContentCryptoProvder.Key.Length;
+        }
+
+        private int GetEntropyLength()
+        {
+            return HEADER_LENGTH - (ContentCryptoProvder.Key.Length + ContentCryptoProvder.IV.Length);
+        }
+
+        private async Task WriteContentToStreamAsync(Stream input, Stream output, CancellationToken cancel)
+        {
+            Console.WriteLine($"input pos: {input.Position}");
+
+            Console.WriteLine($"output pos: {output.Position}");
+
+            using (CryptoStream csEncrypt = new CryptoStream(output, ContentCryptoProvder.CreateEncryptor(), CryptoStreamMode.Write))
+            {
+                await input.CopyToAsync(csEncrypt);
+
+                await csEncrypt.FlushAsync();
+                
+            }
+        }
+        
+
+        private byte[] CreateRandomSalt(int length)
+        {
+            // Create a buffer
+            byte[] randBytes;
+
+            if (length >= 1)
+            {
+                randBytes = new byte[length];
+            }
+            else
+            {
+                randBytes = new byte[1];
+            }
+            
+            // Fill the buffer with random bytes.
+            rand.GetBytes(randBytes);
+
+            // return the bytes.
+            return randBytes;
+        }
+
+        private static void PrintKey(byte[] key)
+        {
+            Console.WriteLine($"{key.Length} {string.Concat(key.Select(b => b.ToString("X2")))}");
+        }
+
+
+    }
+
     class Program : Sandbox
     {
+
+        public static string ConvertToUnsecureString(SecureString securePassword)
+        {
+            if (securePassword == null)
+                throw new ArgumentNullException("securePassword");
+
+            IntPtr unmanagedString = IntPtr.Zero;
+            try
+            {
+                unmanagedString = Marshal.SecureStringToGlobalAllocUnicode(securePassword);
+                return Marshal.PtrToStringUni(unmanagedString);
+            }
+            finally
+            {
+                Marshal.ZeroFreeGlobalAllocUnicode(unmanagedString);
+            }
+        }
+
         static void Main(string[] args)
         {
             sandbox(Run);
@@ -22,34 +268,81 @@ namespace sandbox.temp
 
         public static void Run()
         {
-            Task[] tasks = new Task[8];
+            var inpath = @"D:\temp\crypto\crypto_in.txt";
+            var outpath = @"D:\temp\crypto\crypto_encrypted.txt";
 
-            for(int i = 0; i < 8; i++)
+            var fileEncryptor = new PasswordEncryptionProvider("password");
+
+            using (var infile = File.OpenRead(inpath))
             {
-                var t = new RunThread(i);
-
-                tasks[i] = Task.Run((Action)t.Start);
+                using (var outfile = File.OpenWrite(outpath))
+                {
+                    fileEncryptor.EncryptToStreamAsync(infile, outfile, CancellationToken.None).Wait();
+                }
             }
 
-            Task.WaitAll(tasks);
-            
-        //    //var args = new DumplingUploadCommandArgs();
+            inpath = @"D:\temp\crypto\crypto_encrypted.txt";
+            outpath = @"D:\temp\crypto\crypto_decrypted.txt";
 
-        //    //args.Initialize();
+            fileEncryptor = new PasswordEncryptionProvider("password");
 
-        //    //args.WriteHelp();
-        //    using (var file = new StreamWriter(@"d:\temp\siminput.csv"))
-        //    {
-        //        int buildid = 2146;
+            using (var infile = File.OpenRead(inpath))
+            {
+                using (var outfile = File.OpenWrite(outpath))
+                {
+                    fileEncryptor.DecryptFromStreamAsync(infile, outfile, CancellationToken.None).Wait();
+                }
+            }
+            //while ((pwd = ReadPassword()).Length > 0)
+            //{
 
-        //        for (int i = buildid - 32; i <= buildid; i+=3)
-        //        {
-        //            var line = $"4,7,16,0{i}.00,.001,.0008,.0010,{DateTime.Today - TimeSpan.FromDays(buildid - i)}";
+            //print();
 
-        //            file.WriteLine(line);
-        //        }
-        //    }
+            //print(pwd);
+
+            //var bpwd = new PasswordDeriveBytes(pwd, CreateRandomSalt(7));
+
+            //TripleDESCryptoServiceProvider tdes = new TripleDESCryptoServiceProvider();
+
+            //var key_init = bpwd.CryptDeriveKey("TripleDES", "SHA512", 192, tdes.IV);
+
+            //var hashProvider = SHA256.Create();
+
+            //var key = hashProvider.ComputeHash(key_init);
+
+            //Console.Write("key: ");
+            //PrintKey(key);
+
+            //var hash = hashProvider.ComputeHash(key);
+
+            //Console.Write("hash: ");
+
+            //PrintKey(hash);
+            //}
+            //    //var args = new DumplingUploadCommandArgs();
+
+            //    //args.Initialize();
+
+            //    //args.WriteHelp();
+            //    using (var file = new StreamWriter(@"d:\temp\siminput.csv"))
+            //    {
+            //        int buildid = 2146;
+
+            //        for (int i = buildid - 32; i <= buildid; i+=3)
+            //        {
+            //            var line = $"4,7,16,0{i}.00,.001,.0008,.0010,{DateTime.Today - TimeSpan.FromDays(buildid - i)}";
+
+            //            file.WriteLine(line);
+            //        }
+            //    }
         }
+
+        public static void PrintKey(byte[] key)
+        {
+            print($"{key.Length} {string.Concat(key.Select(b => b.ToString("X2")))}");
+        }
+
+
 
         public static Random rand = new Random();
         
