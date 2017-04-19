@@ -115,7 +115,6 @@ namespace filecrypto
             await input.ReadAsync(header, 0, HEADER_LENGTH);
 
             SetContentKeyFromHeader(header);
-
         }
 
         private void SetContentKeyFromHeader(byte[] headerBytes)

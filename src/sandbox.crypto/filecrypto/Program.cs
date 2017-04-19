@@ -61,7 +61,7 @@ namespace filecrypto
                                 return;
                         }
                     }
-                    catch(InvalidPasswordException)
+                    catch (InvalidPasswordException)
                     {
                         Console.WriteLine("invalid password");
 
@@ -70,7 +70,7 @@ namespace filecrypto
                 }
 
                 //if the output file is null copy the memory stream back to the input file.
-                if(outFile == null)
+                if (outFile == null)
                 {
                     using (var file = File.Open(inFile, FileMode.Create, FileAccess.Write))
                     {
