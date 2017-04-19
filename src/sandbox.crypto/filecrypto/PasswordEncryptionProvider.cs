@@ -63,29 +63,109 @@ namespace filecrypto
 
         public AesCryptoServiceProvider ContentCryptoProvder { get; private set; }
 
-        public async Task EncryptToStreamAsync(Stream input, Stream output, CancellationToken cancel)
+        public async Task EncryptFileAsync(string path, CancellationToken cancel)
         {
-            await WriteHeaderToStream(output, cancel);
+            using (var writeHandle = File.Open(path, FileMode.Open, FileAccess.Write, FileShare.Read))
+            using (var readHandle = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Write))
+            {
+                byte[] filebuff = GetEncryptedHeaderBytes();
 
-            await WriteContentToStreamAsync(input, output, cancel);
+                long bytesWritten = 0;
+
+                var encryptor = ContentCryptoProvder.CreateEncryptor();
+
+                var inblockbuff = new byte[encryptor.InputBlockSize];
+                var outblockbuff = new byte[encryptor.OutputBlockSize];
+
+                var bytesRead = 0;
+
+                while((bytesRead = await readHandle.ReadAsync(inblockbuff, 0, inblockbuff.Length)) == inblockbuff.Length)
+                {
+                    encryptor.TransformBlock(inblockbuff, 0, inblockbuff.Length, outblockbuff, 0);
+
+                    for(int i = 0; i < outblockbuff.Length; i++)
+                    {
+                        writeHandle.WriteByte(filebuff[bytesWritten % filebuff.Length]);
+
+                        filebuff[bytesWritten % filebuff.Length] = outblockbuff[i];
+
+                        bytesWritten++;
+                    }
+                }
+
+                outblockbuff = encryptor.TransformFinalBlock(inblockbuff, 0, bytesRead);
+
+                for (int i = 0; i < outblockbuff.Length; i++)
+                {
+                    writeHandle.WriteByte(filebuff[bytesWritten % filebuff.Length]);
+
+                    filebuff[bytesWritten % filebuff.Length] = outblockbuff[i];
+
+                    bytesWritten++;
+                }
+
+                writeHandle.Flush();
+            }
         }
 
-        public async Task DecryptFromStreamAsync(Stream input, Stream output, CancellationToken cancel)
+        public async Task DecryptFileAsync(string path, CancellationToken cancel)
         {
-            await DecryptHeader(input, cancel);
+            using (var writeHandle = File.Open(path, FileMode.Open, FileAccess.Write, FileShare.Read))
+            using (var readHandle = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Write))
+            {
+                await DecryptHeaderAsync(readHandle, cancel);
 
-            await DecryptContentFromStreamAsync(input, output, cancel);
+                var encryptor = ContentCryptoProvder.CreateDecryptor();
+
+                var inblockbuff = new byte[encryptor.InputBlockSize];
+                var outblockbuff = new byte[encryptor.OutputBlockSize];
+
+                var contentBytes = 0;
+                var bytesRead = 0;
+
+                while ((bytesRead = await readHandle.ReadAsync(inblockbuff, 0, inblockbuff.Length)) == inblockbuff.Length)
+                {
+                    encryptor.TransformBlock(inblockbuff, 0, inblockbuff.Length, outblockbuff, 0);
+
+                    await writeHandle.WriteAsync(outblockbuff, 0, outblockbuff.Length);
+
+                    contentBytes += outblockbuff.Length;
+                }
+
+                outblockbuff = encryptor.TransformFinalBlock(inblockbuff, 0, bytesRead);
+
+                contentBytes += bytesRead;
+                
+                await writeHandle.WriteAsync(outblockbuff, 0, outblockbuff.Length);
+
+                contentBytes += outblockbuff.Length;
+
+                writeHandle.Flush();
+
+                writeHandle.SetLength(contentBytes);
+            }
         }
 
-        public async Task RecryptStreamAsync(string password, Stream stream, CancellationToken cancel)
+        public async Task RecryptFileAsync(string path, string password, CancellationToken cancel)
         {
-            await DecryptHeader(stream, cancel);
+            using (var writeHandle = File.Open(path, FileMode.Open, FileAccess.Write, FileShare.Read))
+            using (var readHandle = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Write))
+            {
+                await DecryptHeaderAsync(readHandle, cancel);
 
-            InitializeHeaderCryptoProvider(password);
+                InitializeHeaderCryptoProvider(password);
 
-            stream.Seek(0, SeekOrigin.Begin);
+                byte[] newHeader = GetEncryptedHeaderBytes();
 
-            await WriteHeaderToStream(stream, cancel);
+                await writeHandle.WriteAsync(newHeader, 0, newHeader.Length);
+
+                await writeHandle.FlushAsync();
+            }
+
+            
+
+
+            //await WriteHeaderToStream(stream, cancel);
         }
 
         private async Task DecryptContentFromStreamAsync(Stream input, Stream output, CancellationToken cancel)
@@ -98,7 +178,7 @@ namespace filecrypto
             }
         }
 
-        private async Task DecryptHeader(Stream input, CancellationToken cancel)
+        private async Task DecryptHeaderAsync(Stream input, CancellationToken cancel)
         {
             //read the hash and make sure it matches the password hash
             for (int i = 0; i < PasswordKeyHash.Length; i++)
@@ -144,28 +224,27 @@ namespace filecrypto
             }
         }
 
-        private async Task WriteHeaderToStream(Stream stream, CancellationToken cancel)
+        private byte[] GetEncryptedHeaderBytes()
         {
-            await stream.WriteAsync(PasswordKeyHash, 0, PasswordKeyHash.Length, cancel);
+            var contentKeyBytes = GetClearHeader();
 
-            var contentKeyBytes = GetHeader();
-
-            var encryptedContentKeyBytes = new byte[contentKeyBytes.Length];
+            var encryptedContentKeyBytes = new byte[PasswordKeyHash.Length + contentKeyBytes.Length];
 
             using (MemoryStream buffStream = new MemoryStream(encryptedContentKeyBytes))
             {
+                //write the password hash to the buffer for password validation
+                buffStream.Write(PasswordKeyHash, 0, PasswordKeyHash.Length);
+
                 using (CryptoStream csEncrypt = new CryptoStream(buffStream, HeaderCryptoProvider.CreateEncryptor(), CryptoStreamMode.Write))
                 {
-                    await csEncrypt.WriteAsync(contentKeyBytes, 0, contentKeyBytes.Length);
+                    csEncrypt.Write(contentKeyBytes, 0, contentKeyBytes.Length);
                 }
-
-                await stream.WriteAsync(encryptedContentKeyBytes, 0, encryptedContentKeyBytes.Length);
-
-                await stream.FlushAsync();
             }
+
+            return encryptedContentKeyBytes;
         }
 
-        private byte[] GetHeader()
+        private byte[] GetClearHeader()
         {
             var entropy = new byte[GetEntropyLength()];
 
@@ -187,17 +266,6 @@ namespace filecrypto
         private int GetEntropyLength()
         {
             return HEADER_LENGTH - (ContentCryptoProvder.Key.Length + ContentCryptoProvder.IV.Length);
-        }
-
-        private async Task WriteContentToStreamAsync(Stream input, Stream output, CancellationToken cancel)
-        {
-            using (CryptoStream csEncrypt = new CryptoStream(output, ContentCryptoProvder.CreateEncryptor(), CryptoStreamMode.Write))
-            {
-                await input.CopyToAsync(csEncrypt);
-
-                await csEncrypt.FlushAsync();
-
-            }
         }
 
 

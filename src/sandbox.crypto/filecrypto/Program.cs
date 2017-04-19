@@ -12,7 +12,7 @@ namespace filecrypto
     {
         static void Main(string[] args)
         {
-            if(args.Length < 2 || args.Length > 3)
+            if (args.Length < 2 || args.Length > 3)
             {
                 Console.WriteLine("invalid arguments");
 
@@ -23,9 +23,9 @@ namespace filecrypto
 
             var action = args[0].ToLower();
 
-            var inFile = args[1];
+            var path = args[1];
 
-            if(!File.Exists(inFile))
+            if (!File.Exists(path))
             {
                 Console.WriteLine("file not found");
 
@@ -34,97 +34,79 @@ namespace filecrypto
                 return;
             }
 
-            var outFile = args.Length == 3 ? args[2] : null;
-
-            using (Stream output = (outFile == null) ? (Stream)new MemoryStream() : (Stream)File.Open(outFile, FileMode.Create, FileAccess.Write))
+            try
             {
-                using (Stream input = File.Open(inFile, FileMode.Open, FileAccess.ReadWrite))
+                switch (action)
                 {
-                    try
-                    {
-                        switch (action)
-                        {
-                            case "encrypt":
-                                EncryptFile(input, output);
-                                break;
-                            case "decrypt":
-                                DecryptFile(input, output);
-                                break;
-                            case "recrypt":
-                                RecryptFile(input);
-                                break;
-                            default:
-                                Console.WriteLine("invalid arguments");
+                    case "encrypt":
+                        EncryptFile(path);
+                        break;
+                    case "decrypt":
+                        DecryptFile(path);
+                        break;
+                    case "recrypt":
+                        RecryptFile(path);
+                        break;
+                    default:
+                        Console.WriteLine("invalid arguments");
 
-                                PrintUsage();
-
-                                return;
-                        }
-                    }
-                    catch (InvalidPasswordException)
-                    {
-                        Console.WriteLine("invalid password");
+                        PrintUsage();
 
                         return;
-                    }
-                }
-
-                //if the output file is null copy the memory stream back to the input file.
-                if (outFile == null)
-                {
-                    using (var file = File.Open(inFile, FileMode.Create, FileAccess.Write))
-                    {
-                        output.CopyTo(file);
-
-                        file.Flush();
-                    }
                 }
             }
+            catch (InvalidPasswordException)
+            {
+                Console.WriteLine("invalid password");
+
+                return;
+            }
+
 
             Console.WriteLine("success");
         }
 
-        static void EncryptFile(Stream input, Stream output)
+        static void EncryptFile(string path)
         {
-            var pwd = PromptPassword(true);
+            var pwd = PromptPassword("Password:");
 
-            if (pwd == null)
+            if (pwd != PromptPassword("Confirm Password:"))
             {
                 Console.WriteLine("passwords do not match");
 
-                return;
+                throw new InvalidPasswordException();
             }
 
             var crypto = new PasswordEncryptionProvider(pwd);
 
-            crypto.EncryptToStreamAsync(input, output, CancellationToken.None).GetAwaiter().GetResult();
+            crypto.EncryptFileAsync(path, CancellationToken.None).GetAwaiter().GetResult();
         }
 
-        static void DecryptFile(Stream input, Stream output)
+        static void DecryptFile(string path)
         {
-            var pwd = PromptPassword(false);
+            var pwd = PromptPassword("Password:");
 
             var crypto = new PasswordEncryptionProvider(pwd);
 
-            crypto.DecryptFromStreamAsync(input, output, CancellationToken.None).GetAwaiter().GetResult();
+            crypto.DecryptFileAsync(path, CancellationToken.None).GetAwaiter().GetResult();
         }
 
-        static void RecryptFile(Stream stream)
+        static void RecryptFile(string path)
         {
-            var pwd = PromptPassword(false);
+            var pwd = PromptPassword("Old Password:");
 
-            var newPwd = PromptPassword(true);
+            var newPwd = PromptPassword("New Password:");
 
-            var crypto = new PasswordEncryptionProvider(pwd);
-
-            if (pwd == null)
+            if (newPwd != PromptPassword("Confirm New Password:"))
             {
                 Console.WriteLine("passwords do not match");
 
-                return;
+                throw new InvalidPasswordException();
             }
 
-            crypto.RecryptStreamAsync(newPwd, stream, CancellationToken.None).GetAwaiter().GetResult();
+            var crypto = new PasswordEncryptionProvider(pwd);
+            
+            crypto.RecryptFileAsync(path, newPwd, CancellationToken.None).GetAwaiter().GetResult();
         }
 
 
@@ -134,27 +116,10 @@ namespace filecrypto
         }
 
 
-        static string PromptPassword(bool confirm)
+        static string PromptPassword(string prompt)
         {
-            Console.Write("Password: ");
+            Console.Write(prompt + " ");
 
-            var pwd = ReadPassword();
-
-            if (confirm)
-            {
-                Console.Write("Confirm Password: ");
-
-                if (pwd != ReadPassword())
-                {
-                    pwd = null;
-                }
-            }
-
-            return pwd;
-        }
-
-        static string ReadPassword()
-        {
             var pwd = new StringBuilder();
             while (true)
             {
@@ -177,8 +142,9 @@ namespace filecrypto
                     pwd.Append(i.KeyChar);
                 }
             }
-            return pwd.ToString();
+            Console.WriteLine();
 
+            return pwd.ToString();
         }
 
     }
