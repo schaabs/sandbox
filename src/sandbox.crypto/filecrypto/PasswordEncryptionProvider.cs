@@ -37,24 +37,18 @@ namespace filecrypto
         private void InitializeHeaderCryptoProvider(string password)
         {
             var bpwd = new PasswordDeriveBytes(password, CreateRandomSalt(7));
-
-            TripleDESCryptoServiceProvider tdes = new TripleDESCryptoServiceProvider();
-
-            var key_init = bpwd.CryptDeriveKey("TripleDES", "SHA512", 192, tdes.IV);
-
+            
+            var rc2 = new RC2CryptoServiceProvider();
+            var key = bpwd.CryptDeriveKey("RC2", "SHA1", 128, new byte[rc2.IV.Length] );
+            
             var hashProvider = SHA256.Create();
 
-            HeaderCryptoProvider.Key = hashProvider.ComputeHash(key_init);
+            HeaderCryptoProvider.Key = key;
 
             PasswordKeyHash = hashProvider.ComputeHash(HeaderCryptoProvider.Key);
 
             HeaderCryptoProvider.Padding = PaddingMode.Zeros;
-
-            byte[] iv = hashProvider.ComputeHash(PasswordKeyHash);
-
-            Array.Resize(ref iv, HeaderCryptoProvider.BlockSize / 8);
-
-            HeaderCryptoProvider.IV = iv;
+            
         }
 
         public byte[] PasswordKeyHash { get; private set; }
@@ -163,16 +157,6 @@ namespace filecrypto
             }
         }
 
-        private async Task DecryptContentFromStreamAsync(Stream input, Stream output, CancellationToken cancel)
-        {
-            using (CryptoStream csDecrypt = new CryptoStream(input, ContentCryptoProvder.CreateDecryptor(), CryptoStreamMode.Read))
-            {
-                await csDecrypt.CopyToAsync(output);
-
-                await output.FlushAsync();
-            }
-        }
-
         private async Task DecryptHeaderAsync(Stream input, CancellationToken cancel)
         {
             //read the hash and make sure it matches the password hash
@@ -183,6 +167,13 @@ namespace filecrypto
                     throw new InvalidPasswordException();
                 }
             }
+
+            //get the IV used to encrypt the content key / IV
+            var headerIV = new byte[HeaderCryptoProvider.IV.Length];
+
+            await input.ReadAsync(headerIV, 0, headerIV.Length);
+
+            HeaderCryptoProvider.IV = headerIV;
 
             //if the hash matches read the encrypted header
             var header = new byte[HEADER_LENGTH];
@@ -223,12 +214,15 @@ namespace filecrypto
         {
             var contentKeyBytes = GetClearHeader();
 
-            var encryptedContentKeyBytes = new byte[PasswordKeyHash.Length + contentKeyBytes.Length];
+            var encryptedContentKeyBytes = new byte[PasswordKeyHash.Length + HeaderCryptoProvider.IV.Length + contentKeyBytes.Length];
 
             using (MemoryStream buffStream = new MemoryStream(encryptedContentKeyBytes))
             {
                 //write the password hash to the buffer for password validation
                 buffStream.Write(PasswordKeyHash, 0, PasswordKeyHash.Length);
+
+                //write the header IV to the buffer for header decryption
+                buffStream.Write(HeaderCryptoProvider.IV, 0, HeaderCryptoProvider.IV.Length);
 
                 using (CryptoStream csEncrypt = new CryptoStream(buffStream, HeaderCryptoProvider.CreateEncryptor(), CryptoStreamMode.Write))
                 {

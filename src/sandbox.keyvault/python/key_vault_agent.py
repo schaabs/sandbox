@@ -1,7 +1,7 @@
 from azure.keyvault.generated import KeyVaultClient
 from azure.mgmt.keyvault import KeyVaultManagementClient
-from python.key_vault_auth import KeyVaultAuth
-from python.key_vault_config import KeyVaultConfig
+from key_vault_auth import KeyVaultAuth
+from key_vault_config import KeyVaultConfig
 
 
 class KeyVaultAgent(object):
@@ -27,3 +27,5 @@ class KeyVaultAgent(object):
     def get_vault(self, vault_name):
         return self.mgmt_client.vaults.get(self.config.resource_group, vault_name)
 
+    def create_vault(self):
+        pass

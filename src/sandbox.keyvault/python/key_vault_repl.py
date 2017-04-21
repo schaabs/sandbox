@@ -9,8 +9,8 @@ import json
 import os
 import sys
 
-from python.key_vault_config import KeyVaultConfig
-from python.key_vault_auth import KeyVaultAuth
+from key_vault_config import KeyVaultConfig
+from key_vault_auth import KeyVaultAuth
 
 CLIENT_ID = '8fd4d3c4-efea-49aa-b1de-2c33c22da56e' # Azure cli
 CLIENT_OID = '8694d835-b4e2-419a-a315-b13c854166e2'

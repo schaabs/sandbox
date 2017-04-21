@@ -15,6 +15,31 @@ using System.Runtime.InteropServices;
 
 namespace sandbox.temp
 {
+    static class LocalExtensions
+    {
+        public static byte[] ToBytes(this string str)
+        {
+            return UnicodeEncoding.Default.GetBytes(str);
+        }
+
+        public static byte[] Transform(this byte[] bytes, ICryptoTransform transform)
+        {
+            using (var memstream = new MemoryStream())
+            using (var cryptStream = new CryptoStream(memstream, transform, CryptoStreamMode.Write))
+            {
+                cryptStream.Write(bytes, 0, bytes.Length);
+
+                cryptStream.FlushFinalBlock();
+
+                return memstream.ToArray();
+            }
+        }
+
+        public static string ToUnicodeString(this byte[] bytes)
+        {
+            return string.Concat(UnicodeEncoding.Default.GetChars(bytes));
+        }
+    }
 
     class Program : Sandbox
     {
@@ -25,26 +50,34 @@ namespace sandbox.temp
 
         public static void Run()
         {
-            File.WriteAllText(@"d:\temp\readwrite.txt", "Sweet One");
+            var strdata = "The lazy brown fox jumped over the fence again.";
 
-            using (var writeHandle = File.Open(@"d:\temp\readwrite.txt", FileMode.Open, FileAccess.Write, FileShare.Read))
-            {
-                using (var readHandle = File.Open(@"d:\temp\readwrite.txt", FileMode.Open, FileAccess.Read, FileShare.Write))
-                {
-                    byte[] buff = UnicodeEncoding.GetEncoding(0).GetBytes("Beat One ".ToArray());
+            print(strdata);
 
-                    for (int i = 0; i < readHandle.Length + buff.Length; i++)
-                    {
-                        byte currRead = (byte)readHandle.ReadByte();
+            var byteData = strdata.ToBytes();
+
+            var provider1 = new AesCryptoServiceProvider() { Padding = PaddingMode.Zeros };
+
+            var provider2 = new AesCryptoServiceProvider() { Padding = PaddingMode.Zeros };
+            provider1.Key = provider2.Key;
+
+            var encryptor1 = provider1.CreateEncryptor();
+            var encryptor2 = provider2.CreateEncryptor();
+
+            var decryptor1 = provider1.CreateDecryptor();
+            var decryptor2 = provider2.CreateDecryptor();
 
 
-                        writeHandle.WriteByte(buff[i % buff.Length]);
+            var encryptedBytes = byteData.Transform(encryptor1).Transform(encryptor2);
 
-                        buff[i % buff.Length] = currRead;
-                    }
+            print(byteData.Transform(encryptor1).ToHexString());
+            print(byteData.Transform(encryptor2).ToHexString());
 
-                }
-            }
+            print(provider2.Key.ToHexString());
+            print(provider2.Key.Transform(encryptor1).Transform(decryptor2).ToHexString());
+
+            print(byteData.Transform(encryptor2).Transform(decryptor1).ToUnicodeString());
+
         }
     }
     
