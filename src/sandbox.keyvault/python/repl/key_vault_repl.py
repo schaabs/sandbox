@@ -1,9 +1,9 @@
 #!/usr/local/bin/python
-from azure.keyvault.generated.models import JsonWebKeyType
 from azure.mgmt.keyvault.models import Sku
 from azure.mgmt.keyvault.models import VaultCreateOrUpdateParameters, VaultProperties, SkuName, AccessPolicyEntry, \
     Permissions, KeyPermissions, SecretPermissions, CertificatePermissions
-from azure.keyvault import KeyVaultClient
+from azure.keyvault import KeyVaultClient, KeyVaultAuthentication
+from azure.keyvault.models import JsonWebKeyType
 from azure.mgmt.keyvault import KeyVaultManagementClient
 import json
 import os

@@ -50,34 +50,30 @@ namespace sandbox.temp
 
         public static void Run()
         {
-            var strdata = "The lazy brown fox jumped over the fence again.";
+            foreach (var rundir in Directory.EnumerateDirectories(@"\\perfdaddy\clrstress\sandbox\ProjectN\testruns", "*", SearchOption.TopDirectoryOnly).Where(d => Path.GetFileName(d).StartsWith("PN")))
+            {
+                var i = new DirectoryInfo(rundir);
 
-            print(strdata);
+                print(rundir);
+                print(i.CreationTime);
+                print(i.CreationTimeUtc);
+                print(i.LastWriteTime);
+                print(i.LastWriteTimeUtc);
+                //Directory.SetLastAccessTime(rundir, i.CreationTime);
 
-            var byteData = strdata.ToBytes();
+                foreach (var dir in Directory.EnumerateDirectories(rundir, "*", SearchOption.AllDirectories))
+                {
+                    var info = new DirectoryInfo(dir);
 
-            var provider1 = new AesCryptoServiceProvider() { Padding = PaddingMode.Zeros };
-
-            var provider2 = new AesCryptoServiceProvider() { Padding = PaddingMode.Zeros };
-            provider1.Key = provider2.Key;
-
-            var encryptor1 = provider1.CreateEncryptor();
-            var encryptor2 = provider2.CreateEncryptor();
-
-            var decryptor1 = provider1.CreateDecryptor();
-            var decryptor2 = provider2.CreateDecryptor();
-
-
-            var encryptedBytes = byteData.Transform(encryptor1).Transform(encryptor2);
-
-            print(byteData.Transform(encryptor1).ToHexString());
-            print(byteData.Transform(encryptor2).ToHexString());
-
-            print(provider2.Key.ToHexString());
-            print(provider2.Key.Transform(encryptor1).Transform(decryptor2).ToHexString());
-
-            print(byteData.Transform(encryptor2).Transform(decryptor1).ToUnicodeString());
-
+                    print(dir);
+                    print(info.CreationTime);
+                    print(info.CreationTimeUtc);
+                    print(info.LastWriteTime);
+                    print(info.LastWriteTimeUtc);
+                    //Directory.SetLastAccessTime(dir, info.CreationTime);
+                    //Directory.SetLastWriteTime(dir, info.CreationTime);
+                }
+            }
         }
     }
     

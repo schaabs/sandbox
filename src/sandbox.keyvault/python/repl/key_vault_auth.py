@@ -1,6 +1,7 @@
 import adal
 from adal import token_cache
 from azure.common.credentials import BasicTokenAuthentication
+from azure.keyvault import KeyVaultAuthentication
 
 KEY_VAULT_RESOURCE = 'https://vault.azure.net'
 AZURE_MANAGEMENT_RESOURCE2 = 'https://management.core.windows.net/'
@@ -18,10 +19,13 @@ class KeyVaultAuth(object):
 
 
     def get_keyvault_creds(self):
-        return self._get_creds(KEY_VAULT_RESOURCE)
+        def token_callback(server, resource, scope):
+            token = self.get_creds(resource)
+            return token['tokenType'], token['accessToken']
+        return KeyVaultAuthentication(token_callback)
 
     def get_arm_creds(self):
-        return self._get_creds(AZURE_MANAGEMENT_RESOURCE2)
+        return BasicTokenAuthentication(self.get_creds(AZURE_MANAGEMENT_RESOURCE2))
 
     def _get_auth_token_from_code(self, resource):
         code = self._context.acquire_user_code(resource, self._client_id)
@@ -32,7 +36,7 @@ class KeyVaultAuth(object):
 
         return token
 
-    def _get_creds(self, resource):
+    def get_creds(self, resource):
         token = None
 
         if not self._config.user_id:
@@ -54,6 +58,6 @@ class KeyVaultAuth(object):
 
             token['access_token'] = token['accessToken']
 
-            return BasicTokenAuthentication(token)
+            return token
 
         return None

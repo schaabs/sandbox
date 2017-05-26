@@ -1,4 +1,4 @@
-from azure.keyvault.generated import KeyVaultClient
+from azure.keyvault import KeyVaultClient, KeyVaultAuthentication
 from azure.mgmt.keyvault import KeyVaultManagementClient
 from key_vault_auth import KeyVaultAuth
 from key_vault_config import KeyVaultConfig
@@ -15,7 +15,7 @@ class KeyVaultAgent(object):
 
         self.auth = KeyVaultAuth(self.config, client_id)
         self.mgmt_client = KeyVaultManagementClient(self.auth.get_arm_creds(), self.config.subscription_id)
-        self.data_client = KeyVaultClient(self.auth.get_keyvault_creds())
+        self.data_client = KeyVaultClient(KeyVaultAuthentication(self.auth.get_keyvault_creds))
 
     _attribute_map = {
         'config': {'key': 'config', 'type': 'KeyVaultConfig'},
