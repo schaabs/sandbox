@@ -1,5 +1,6 @@
 import random
 import string
+import time
 
 
 def rand_str(min_len=None, max_len=None, length=None):
@@ -10,3 +11,18 @@ def rand_str(min_len=None, max_len=None, length=None):
         length = random.randrange(min_len, max_len + 1)
 
     return ''.join(random.choice(string.printable) for _ in range(length))
+
+def poll(func, args=(), retry_wait=None, max_retries=None, retry_on_exception=True):
+    retry_count = 0
+    ret = None
+    while not ret and (not max_retries or retry_count < max_retries):
+        try:
+            ret = func(*args[0:])
+        except Exception as e:
+            if not retry_on_exception:
+                raise e
+
+        if not ret and retry_wait:
+            time.sleep(retry_wait)
+
+    return ret

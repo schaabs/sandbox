@@ -50,30 +50,38 @@ namespace sandbox.temp
 
         public static void Run()
         {
-            foreach (var rundir in Directory.EnumerateDirectories(@"\\perfdaddy\clrstress\sandbox\ProjectN\testruns", "*", SearchOption.TopDirectoryOnly).Where(d => Path.GetFileName(d).StartsWith("PN")))
-            {
-                var i = new DirectoryInfo(rundir);
+            var dto = new DateTimeOffset(DateTime.UtcNow);
 
-                print(rundir);
-                print(i.CreationTime);
-                print(i.CreationTimeUtc);
-                print(i.LastWriteTime);
-                print(i.LastWriteTimeUtc);
-                //Directory.SetLastAccessTime(rundir, i.CreationTime);
+            print(dto.ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ss'Z'"));
 
-                foreach (var dir in Directory.EnumerateDirectories(rundir, "*", SearchOption.AllDirectories))
-                {
-                    var info = new DirectoryInfo(dir);
+            
 
-                    print(dir);
-                    print(info.CreationTime);
-                    print(info.CreationTimeUtc);
-                    print(info.LastWriteTime);
-                    print(info.LastWriteTimeUtc);
-                    //Directory.SetLastAccessTime(dir, info.CreationTime);
-                    //Directory.SetLastWriteTime(dir, info.CreationTime);
-                }
-            }
+
+
+            //foreach (var rundir in Directory.EnumerateDirectories(@"\\perfdaddy\clrstress\sandbox\ProjectN\testruns", "*", SearchOption.TopDirectoryOnly).Where(d => Path.GetFileName(d).StartsWith("PN")))
+            //{
+            //    var i = new DirectoryInfo(rundir);
+
+            //    print(rundir);
+            //    print(i.CreationTime);
+            //    print(i.CreationTimeUtc);
+            //    print(i.LastWriteTime);
+            //    print(i.LastWriteTimeUtc);
+            //    //Directory.SetLastAccessTime(rundir, i.CreationTime);
+
+            //    foreach (var dir in Directory.EnumerateDirectories(rundir, "*", SearchOption.AllDirectories))
+            //    {
+            //        var info = new DirectoryInfo(dir);
+
+            //        print(dir);
+            //        print(info.CreationTime);
+            //        print(info.CreationTimeUtc);
+            //        print(info.LastWriteTime);
+            //        print(info.LastWriteTimeUtc);
+            //        //Directory.SetLastAccessTime(dir, info.CreationTime);
+            //        //Directory.SetLastWriteTime(dir, info.CreationTime);
+            //    }
+            //}
         }
     }
     

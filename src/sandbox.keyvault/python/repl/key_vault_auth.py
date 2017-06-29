@@ -47,6 +47,7 @@ class KeyVaultAuth(object):
             if not token:
                 token = self._get_auth_token_from_code(resource)
 
+
         self._config.token_cache = self._cache.serialize()
 
         if token:
