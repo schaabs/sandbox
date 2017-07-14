@@ -60,6 +60,11 @@ namespace sandbox.common
             print(output.ToString());
         }
 
+        public static void print(IEnumerable<object> items)
+        {
+            print($"[ {string.Join(", ", items.ToArray())} ]");
+        }
+
         public static string prompt(string prompt)
         {
             lock (s_console_lock)

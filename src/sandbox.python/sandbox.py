@@ -45,7 +45,7 @@ class _SasDefinitionParameters(dict):
             self[_SasConst.IP_RANGE] = ip_range
         if api_version:
             self[_SasConst.API_VERSION] = api_version
-            
+
 
 class _ServiceSasDefinitionParameters(_SasDefinitionParameters):
     def __init__(self, validity_period, permissions, resource_types, service_type, https_only=False, policy=None, ip_range=None, api_version=None):
