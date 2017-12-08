@@ -19,6 +19,9 @@ def _get_client_id():
 def _get_client_secret():
     return os.getenv('AZURE_CLIENT_SECRET', 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz')
 
+def _get_vault_url();
+	return  os.getenv('AZURE_VAULT_URL', 'https://myvault.vault.azure.net')
+
 def _authenticate(server, resource, scope, scheme):
     token_cache_key = server + resource + scope + scheme
     access_token = _token_cache.get(token_cache_key, None)
@@ -60,7 +63,7 @@ if __name__ == "__main__":
     to_wrap = os.urandom(16)
 
     # wrap the key
-    wrapped = client.wrap_key(vault_base_url='vaulturl',
+    wrapped = client.wrap_key(vault_base_url=_get_vault_url(),
                               key_name='key1',
                               key_version='',
                               algorithm='RSA-OAEP',
