@@ -62,6 +62,9 @@ if __name__ == "__main__":
     # create a random AES key to wrap
     to_wrap = os.urandom(16)
 
+    print('\noriginal value:')
+    print(to_wrap)
+	
     # wrap the key
     wrapped = client.wrap_key(vault_base_url=_get_vault_url(),
                               key_name='key1',
@@ -70,4 +73,14 @@ if __name__ == "__main__":
                               value=to_wrap)
 
     print('\nwrap result:')
-    print(wrapped)
+    print(wrapped.result)
+	
+    unwrapped = client.unwrap_key(vault_base_url=_get_vault_url(),
+                                 key_name='key1',
+                                 key_version='',
+                                 algorithm='RSA-OAEP',
+                                 value=wrapped.result)
+	
+    print('\nunwrap result:')
+    print(unwrapped.result)
+	
