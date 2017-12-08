@@ -19,7 +19,7 @@ def _get_client_id():
 def _get_client_secret():
     return os.getenv('AZURE_CLIENT_SECRET', 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz')
 
-def _get_vault_url();
+def _get_vault_url():
 	return  os.getenv('AZURE_VAULT_URL', 'https://myvault.vault.azure.net')
 
 def _authenticate(server, resource, scope, scheme):
