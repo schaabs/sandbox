@@ -1,5 +1,5 @@
 from ..algorithm import Algorithm, AuthenticatedSymmetricEncryptionAlgorithm
-from ..transform import AuthenticatedCryptoTransform
+from ..transform import AuthenticatedCryptoTransform, BlockCryptoTransform
 from abc import abstractmethod
 import codecs
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -25,7 +25,7 @@ def _int_to_bigendian_8_bytes(i):
     return b
 
 
-class _AesCbcHmacCryptoTransform(AuthenticatedCryptoTransform):
+class _AesCbcHmacCryptoTransform(BlockCryptoTransform, AuthenticatedCryptoTransform):
     def __init__(self, key, iv, auth_data, auth_tag):
         self._aes_key = key[:len(key) // 2]
         self._hmac_key = key[len(key) // 2:]

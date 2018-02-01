@@ -8,7 +8,7 @@ class CryptoTransform(with_metaclass(ABCMeta, object)):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self._key = None
+        self.dispose()
 
     @abstractmethod
     def transform(self, data):
