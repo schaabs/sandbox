@@ -32,7 +32,6 @@ export class ClientSecretCredential implements TokenCredential;
 export class ClientCertificateCredential implements TokenCredential;
 export class EnvironmentCredential implements TokenCredential;
 export class AggregateCredential implements TokenCredential;
-export class ClientCertificateCredential implements TokenCredential;
 export interface IdentityClientOptions extends ServiceClientOptions;
 ~~~
 __java__
@@ -50,7 +49,6 @@ public class ClientSecretCredential extends TokenCredential;
 public class ClientCertificateCredential extends TokenCredential;
 public class EnvironmentCredential extends TokenCredential;
 public class AggregateCredential extends TokenCredential;
-public class ClientCertificateCredential extends TokenCredential;
 public interface IdentityClientOptions extends ServiceClientOptions;
 ~~~
 __C#__
@@ -80,7 +78,7 @@ __python__
 ~~~ python
 class TokenCredential(Protocol):
     def get_token(self, scopes, **kwargs):
-        # type: (Iterable[str], Mapping[str, Any]) -> str
+        # type: (Iterable[str], Mapping[str, Any]) -> Optional[str]
 ~~~
 __javascript__
 ~~~ typescript
@@ -88,13 +86,13 @@ export interface TokenCredential {
   getToken(
     scopes: string[],
     requestOptions?: RequestOptionsBase
-  ): Promise<string?>; 
+  ): Promise<string | null>; 
 }
 ~~~
 __java__
 ~~~ java
 public abstract class TokenCredential {
-    public abstract Mono<String> getTokenAsync(string[] scopes);
+    public abstract Mono<String> getToken(string[] scopes);
 }
 ~~~
 __C#__
@@ -190,7 +188,7 @@ export class KeyClient {
     // ...
     const requestPolicyFactories: RequestPolicyFactory[] = [
       // ...
-      authenticationPolicy(credential, "https://vault.azure.net/.default");
+      authenticationPolicy(credential, [ "https://vault.azure.net/.default" ]);
       // ...
     ];
   }
