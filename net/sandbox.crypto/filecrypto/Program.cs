@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,6 +26,8 @@ namespace filecrypto
 
             var path = args[1];
 
+            var outPath = (args.Length >= 3) ? args[2] : path;
+
             if (!File.Exists(path))
             {
                 Console.WriteLine("file not found");
@@ -46,6 +49,9 @@ namespace filecrypto
                         break;
                     case "recrypt":
                         RecryptFile(path);
+                        break;
+                    case "unprotect":
+                        UnprotectFile(path, outPath);
                         break;
                     default:
                         Console.WriteLine("invalid arguments");
@@ -107,6 +113,15 @@ namespace filecrypto
             var crypto = new PasswordEncryptionProvider(pwd);
             
             crypto.RecryptFileAsync(path, newPwd, CancellationToken.None).GetAwaiter().GetResult();
+        }
+
+        static void UnprotectFile(string path, string outPath)
+        {
+            var protectedBytes = File.ReadAllBytes(path);
+
+            var unprotectedBytes = ProtectedData.Unprotect(protectedBytes, null, DataProtectionScope.CurrentUser);
+
+            File.WriteAllBytes(outPath, unprotectedBytes);
         }
 
 

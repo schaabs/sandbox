@@ -19,4 +19,9 @@ ENV IDENTITYTEST_IMDSTEST_SYSTEMASSIGNEDVAULT https://aiimdssavault.vault.azure.
 
 WORKDIR /sdkroot/sdk/identity/Azure.Identity
 
-CMD ["dotnet", "test", "--filter", "FullyQualifiedName~Azure.Identity.Tests.ManagedIdentityCredentialSFLiveTests"]
+CMD dotnet test Azure.Identity.Tests.dll --filter "FullyQualifiedName~Azure.Identity.Tests.ManagedIdentityCredentialSFLiveTests"
+
+CMD cat /home/sschaab/azure-sdk-for-net/sdk/identity/Azure.Identity/tests/SessionRecords/ManagedIdentityCredentialSFLiveTests/*
+
+
+dotnet test Azure.Identity.Tests.dll --filter "FullyQualifiedName~Azure.Identity.Tests.ManagedIdentityCredentialSFLiveTests"
